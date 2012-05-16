@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SPARCTARGETASMINFO_H
-#define SPARCTARGETASMINFO_H
+#ifndef MAPIPTARGETASMINFO_H
+#define MAPIPTARGETASMINFO_H
 
 #include "llvm/MC/MCAsmInfo.h"
 

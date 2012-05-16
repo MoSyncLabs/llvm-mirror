@@ -1,4 +1,4 @@
-//===-- MapipRegisterInfo.cpp - SPARC Register Information ----------------===//
+//===-- MapipRegisterInfo.cpp - MAPIP Register Information ----------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the SPARC implementation of the TargetRegisterInfo class.
+// This file contains the MAPIP implementation of the TargetRegisterInfo class.
 //
 //===----------------------------------------------------------------------===//
 

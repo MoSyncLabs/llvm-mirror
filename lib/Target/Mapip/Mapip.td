@@ -17,18 +17,18 @@
 include "llvm/Target/Target.td"
 
 //===----------------------------------------------------------------------===//
-// SPARC Subtarget features.
+// MAPIP Subtarget features.
 //
  
 def FeatureV9
   : SubtargetFeature<"v9", "IsV9", "true",
-                     "Enable SPARC-V9 instructions">;
+                     "Enable MAPIP-V9 instructions">;
 def FeatureV8Deprecated
   : SubtargetFeature<"deprecated-v8", "V8DeprecatedInsts", "true",
                      "Enable deprecated V8 instructions in V9 mode">;
 def FeatureVIS
   : SubtargetFeature<"vis", "IsVIS", "true",
-                     "Enable UltraSPARC Visual Instruction Set extensions">;
+                     "Enable UltraMAPIP Visual Instruction Set extensions">;
 
 //===----------------------------------------------------------------------===//
 // Register File, Calling Conv, Instruction Descriptions
@@ -41,7 +41,7 @@ include "MapipInstrInfo.td"
 def MapipInstrInfo : InstrInfo;
 
 //===----------------------------------------------------------------------===//
-// SPARC processors supported.
+// MAPIP processors supported.
 //===----------------------------------------------------------------------===//
 
 class Proc<string Name, list<SubtargetFeature> Features>

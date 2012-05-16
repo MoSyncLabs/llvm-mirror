@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SPARCINSTRUCTIONINFO_H
-#define SPARCINSTRUCTIONINFO_H
+#ifndef MAPIPINSTRUCTIONINFO_H
+#define MAPIPINSTRUCTIONINFO_H
 
 #include "MapipRegisterInfo.h"
 #include "llvm/Target/TargetInstrInfo.h"

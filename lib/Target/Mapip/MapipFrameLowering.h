@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SPARC_FRAMEINFO_H
-#define SPARC_FRAMEINFO_H
+#ifndef MAPIP_FRAMEINFO_H
+#define MAPIP_FRAMEINFO_H
 
 #include "Mapip.h"
 #include "MapipSubtarget.h"

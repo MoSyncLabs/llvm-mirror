@@ -10,8 +10,8 @@
 // This file declares  Mapip specific per-machine-function information.
 //
 //===----------------------------------------------------------------------===//
-#ifndef SPARCMACHINEFUNCTIONINFO_H
-#define SPARCMACHINEFUNCTIONINFO_H
+#ifndef MAPIPMACHINEFUNCTIONINFO_H
+#define MAPIPMACHINEFUNCTIONINFO_H
 
 #include "llvm/CodeGen/MachineFunction.h"
 

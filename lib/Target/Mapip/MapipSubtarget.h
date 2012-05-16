@@ -1,4 +1,4 @@
-//===-- MapipSubtarget.h - Define Subtarget for the SPARC -------*- C++ -*-===//
+//===-- MapipSubtarget.h - Define Subtarget for the MAPIP -------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,12 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file declares the SPARC specific subclass of TargetSubtargetInfo.
+// This file declares the MAPIP specific subclass of TargetSubtargetInfo.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SPARC_SUBTARGET_H
-#define SPARC_SUBTARGET_H
+#ifndef MAPIP_SUBTARGET_H
+#define MAPIP_SUBTARGET_H
 
 #include "llvm/Target/TargetSubtargetInfo.h"
 #include <string>
@@ -46,9 +46,9 @@ public:
   std::string getDataLayout() const {
     const char *p;
     if (is64Bit()) {
-      p = "E-p:64:64:64-i64:64:64-f64:64:64-f128:128:128-n32:64";
+      p = "e-p:64:64:64-i64:64:64-f64:64:64-f128:128:128-n32:64";
     } else {
-      p = "E-p:32:32:32-i64:64:64-f64:64:64-f128:64:64-n32";
+      p = "e-p:32:32:32-i64:64:64-f64:64:64-f128:64:64-n32";
     }
     return std::string(p);
   }

@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SPARCREGISTERINFO_H
-#define SPARCREGISTERINFO_H
+#ifndef MAPIPREGISTERINFO_H
+#define MAPIPREGISTERINFO_H
 
 #include "llvm/Target/TargetRegisterInfo.h"
 

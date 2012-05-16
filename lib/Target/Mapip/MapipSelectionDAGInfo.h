@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SPARCSELECTIONDAGINFO_H
-#define SPARCSELECTIONDAGINFO_H
+#ifndef MAPIPSELECTIONDAGINFO_H
+#define MAPIPSELECTIONDAGINFO_H
 
 #include "llvm/Target/TargetSelectionDAGInfo.h"
 

@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SPARC_ISELLOWERING_H
-#define SPARC_ISELLOWERING_H
+#ifndef MAPIP_ISELLOWERING_H
+#define MAPIP_ISELLOWERING_H
 
 #include "Mapip.h"
 #include "llvm/Target/TargetLowering.h"
@@ -98,4 +98,4 @@ namespace llvm {
   };
 } // end namespace llvm
 
-#endif    // SPARC_ISELLOWERING_H
+#endif    // MAPIP_ISELLOWERING_H

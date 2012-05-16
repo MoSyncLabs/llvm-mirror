@@ -1,4 +1,4 @@
-//===-- MapipSubtarget.cpp - SPARC Subtarget Information ------------------===//
+//===-- MapipSubtarget.cpp - MAPIP Subtarget Information ------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the SPARC specific subclass of TargetSubtargetInfo.
+// This file implements the MAPIP specific subclass of TargetSubtargetInfo.
 //
 //===----------------------------------------------------------------------===//
 

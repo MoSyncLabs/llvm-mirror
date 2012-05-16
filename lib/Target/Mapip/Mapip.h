@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TARGET_SPARC_H
-#define TARGET_SPARC_H
+#ifndef TARGET_MAPIP_H
+#define TARGET_MAPIP_H
 
 #include "MCTargetDesc/MapipMCTargetDesc.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -71,7 +71,7 @@ namespace llvm {
     };
   }
   
-  inline static const char *SPARCCondCodeToString(SPCC::CondCodes CC) {
+  inline static const char *MAPIPCondCodeToString(SPCC::CondCodes CC) {
     switch (CC) {
     case SPCC::ICC_NE:  return "ne";
     case SPCC::ICC_E:   return "e";

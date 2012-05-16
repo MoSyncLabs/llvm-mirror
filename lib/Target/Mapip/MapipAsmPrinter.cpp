@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file contains a printer that converts from our internal representation
-// of machine-dependent LLVM code to GAS-format SPARC assembly language.
+// of machine-dependent LLVM code to GAS-format MAPIP assembly language.
 //
 //===----------------------------------------------------------------------===//
 
@@ -174,7 +174,7 @@ bool MapipAsmPrinter::printGetPCX(const MachineInstr *MI, unsigned opNum,
 void MapipAsmPrinter::printCCOperand(const MachineInstr *MI, int opNum,
                                      raw_ostream &O) {
   int CC = (int)MI->getOperand(opNum).getImm();
-  O << SPARCCondCodeToString((SPCC::CondCodes)CC);
+  O << MAPIPCondCodeToString((SPCC::CondCodes)CC);
 }
 
 /// PrintAsmOperand - Print out an operand for an inline asm expression.

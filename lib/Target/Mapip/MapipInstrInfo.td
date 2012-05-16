@@ -136,7 +136,7 @@ def getPCX        : Operand<i32> {
 }
 
 //===----------------------------------------------------------------------===//
-// SPARC Flag Conditions
+// MAPIP Flag Conditions
 //===----------------------------------------------------------------------===//
 
 // Note that these values must be kept in sync with the CCOp::CondCode enum

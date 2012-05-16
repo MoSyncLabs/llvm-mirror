@@ -19,7 +19,8 @@ using namespace llvm;
 void MapipELFMCAsmInfo::anchor() { }
 
 MapipELFMCAsmInfo::MapipELFMCAsmInfo(const Target &T, StringRef TT) {
-  IsLittleEndian = false;
+  //IsLittleEndian = false;
+  IsLittleEndian = true;
   Triple TheTriple(TT);
   //if (TheTriple.getArch() == Triple::mapipv9)
   //  PointerSize = 8;
@@ -27,17 +28,21 @@ MapipELFMCAsmInfo::MapipELFMCAsmInfo(const Target &T, StringRef TT) {
   Data16bitsDirective = "\t.half\t";
   Data32bitsDirective = "\t.word\t";
   Data64bitsDirective = 0;  // .xword is only supported by V9.
-  ZeroDirective = "\t.skip\t";
-  CommentString = "!";
-  HasLEB128 = true;
+  ZeroDirective = "\t.space\t";
+  CommentString = ";";
+  //HasLEB128 = true;
   SupportsDebugInformation = true;
   
-  SunStyleELFSectionSwitchSyntax = true;
-  UsesELFSectionDirectiveForBSS = true;
+  //SunStyleELFSectionSwitchSyntax = true;
+  //UsesELFSectionDirectiveForBSS = true;
+  //WeakRefDirective = "\t.weak\t";
+  //WeakRefDirective = "\t.extern\t";
+  //PrivateGlobalPrefix = ".L";
 
-  WeakRefDirective = "\t.weak\t";
-
-  PrivateGlobalPrefix = ".L";
+  GlobalPrefix = "_";
+  PrivateGlobalPrefix = "_";
+  GlobalDirective = "\t.global\t";
+  ExternDirective = "\t.extern\t";
 }
 
 

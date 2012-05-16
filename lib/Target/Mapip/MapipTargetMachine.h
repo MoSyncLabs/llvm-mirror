@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SPARCTARGETMACHINE_H
-#define SPARCTARGETMACHINE_H
+#ifndef MAPIPTARGETMACHINE_H
+#define MAPIPTARGETMACHINE_H
 
 #include "MapipInstrInfo.h"
 #include "MapipISelLowering.h"

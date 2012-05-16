@@ -1,4 +1,4 @@
-//===-- DelaySlotFiller.cpp - SPARC delay slot filler ---------------------===//
+//===-- DelaySlotFiller.cpp - MAPIP delay slot filler ---------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -46,7 +46,7 @@ namespace {
       : MachineFunctionPass(ID), TM(tm), TII(tm.getInstrInfo()) { }
 
     virtual const char *getPassName() const {
-      return "SPARC Delay Slot Filler";
+      return "MAPIP Delay Slot Filler";
     }
 
     bool runOnMachineBasicBlock(MachineBasicBlock &MBB);

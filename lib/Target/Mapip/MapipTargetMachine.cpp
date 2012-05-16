@@ -68,8 +68,8 @@ bool MapipPassConfig::addInstSelector() {
 /// passes immediately before machine code is emitted.  This should return
 /// true if -print-machineinstrs should print out the code after the passes.
 bool MapipPassConfig::addPreEmitPass(){
-  PM->add(createMapipFPMoverPass(getMapipTargetMachine()));
-  PM->add(createMapipDelaySlotFillerPass(getMapipTargetMachine()));
+  //PM->add(createMapipFPMoverPass(getMapipTargetMachine()));
+  //PM->add(createMapipDelaySlotFillerPass(getMapipTargetMachine()));
   return true;
 }
 

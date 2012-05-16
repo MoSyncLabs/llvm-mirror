@@ -639,7 +639,7 @@ MapipTargetLowering::getSRetArgSize(SelectionDAG &DAG, SDValue Callee) const
 // TargetLowering Implementation
 //===----------------------------------------------------------------------===//
 
-/// IntCondCCodeToICC - Convert a DAG integer condition code to a SPARC ICC
+/// IntCondCCodeToICC - Convert a DAG integer condition code to a MAPIP ICC
 /// condition.
 static SPCC::CondCodes IntCondCCodeToICC(ISD::CondCode CC) {
   switch (CC) {
@@ -657,7 +657,7 @@ static SPCC::CondCodes IntCondCCodeToICC(ISD::CondCode CC) {
   }
 }
 
-/// FPCondCCodeToFCC - Convert a DAG floatingp oint condition code to a SPARC
+/// FPCondCCodeToFCC - Convert a DAG floatingp oint condition code to a MAPIP
 /// FCC condition.
 static SPCC::CondCodes FPCondCCodeToFCC(ISD::CondCode CC) {
   switch (CC) {

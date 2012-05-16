@@ -11,14 +11,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SPARCMCTARGETDESC_H
-#define SPARCMCTARGETDESC_H
+#ifndef MAPIPMCTARGETDESC_H
+#define MAPIPMCTARGETDESC_H
 
 namespace llvm {
 class Target;
 
 extern Target TheMapipTarget;
-extern Target TheMapipV9Target;
+//extern Target TheMapipV9Target;
 
 } // End llvm namespace
 
