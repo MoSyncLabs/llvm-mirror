@@ -56,6 +56,7 @@ public:
     r600,    // R600: AMD GPUs HD2XXX - HD6XXX
     sparc,   // Sparc: sparc
     sparcv9, // Sparcv9: Sparcv9
+    mapip,   // Mapip: mapip
     tce,     // TCE (http://tce.cs.tut.fi/): tce
     thumb,   // Thumb: thumb, thumbv.*
     x86,     // X86: i[3-9]86

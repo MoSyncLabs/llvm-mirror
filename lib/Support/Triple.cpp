@@ -32,6 +32,7 @@ const char *Triple::getArchTypeName(ArchType Kind) {
   case r600:    return "r600";
   case sparc:   return "sparc";
   case sparcv9: return "sparcv9";
+  case mapip:  	return "mapip";
   case tce:     return "tce";
   case thumb:   return "thumb";
   case x86:     return "i386";
@@ -70,6 +71,8 @@ const char *Triple::getArchTypePrefix(ArchType Kind) {
 
   case sparcv9:
   case sparc:   return "sparc";
+
+  case mapip:  	return "mapip";
 
   case x86:
   case x86_64:  return "x86";
@@ -170,6 +173,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("nvptx64", nvptx64)
     .Case("le32", le32)
     .Case("amdil", amdil)
+    .Case("mapip", mapip)
     .Default(UnknownArch);
 }
 
@@ -257,6 +261,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("hexagon", Triple::hexagon)
     .Case("sparc", Triple::sparc)
     .Case("sparcv9", Triple::sparcv9)
+    .Case("mapip", Triple::mapip)
     .Case("tce", Triple::tce)
     .Case("xcore", Triple::xcore)
     .Case("ptx32", Triple::ptx32)
@@ -696,6 +701,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::thumb:
   case llvm::Triple::x86:
   case llvm::Triple::xcore:
+  case llvm::Triple::mapip:
     return 32;
 
   case llvm::Triple::mips64:
@@ -747,6 +753,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::thumb:
   case Triple::x86:
   case Triple::xcore:
+  case Triple::mapip:
     // Already 32-bit.
     break;
 
@@ -776,6 +783,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::tce:
   case Triple::thumb:
   case Triple::xcore:
+  case Triple::mapip:
     T.setArch(UnknownArch);
     break;
 
