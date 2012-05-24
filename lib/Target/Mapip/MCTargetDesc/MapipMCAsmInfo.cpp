@@ -1,4 +1,4 @@
-//===-- MapipMCAsmInfo.cpp - Mapip asm properties -------------------------===//
+//===-- MAPIPMCAsmInfo.cpp - MAPIP asm properties -----------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,42 +7,30 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the declarations of the MapipMCAsmInfo properties.
+// This file contains the declarations of the MAPIPMCAsmInfo properties.
 //
 //===----------------------------------------------------------------------===//
 
 #include "MapipMCAsmInfo.h"
-#include "llvm/ADT/Triple.h"
-
+#include "llvm/ADT/StringRef.h"
 using namespace llvm;
 
-void MapipELFMCAsmInfo::anchor() { }
+void MAPIPMCAsmInfo::anchor() { }
 
-MapipELFMCAsmInfo::MapipELFMCAsmInfo(const Target &T, StringRef TT) {
-  //IsLittleEndian = false;
-  IsLittleEndian = true;
-  Triple TheTriple(TT);
-  //if (TheTriple.getArch() == Triple::mapipv9)
-  //  PointerSize = 8;
+MAPIPMCAsmInfo::MAPIPMCAsmInfo(const Target &T, StringRef TT) {
+  LabelSuffix = ":";
+  PointerSize = 4;
 
-  Data16bitsDirective = "\t.half\t";
-  Data32bitsDirective = "\t.word\t";
-  Data64bitsDirective = 0;  // .xword is only supported by V9.
-  ZeroDirective = "\t.space\t";
-  CommentString = ";";
-  //HasLEB128 = true;
-  SupportsDebugInformation = true;
-  
-  //SunStyleELFSectionSwitchSyntax = true;
-  //UsesELFSectionDirectiveForBSS = true;
-  //WeakRefDirective = "\t.weak\t";
-  //WeakRefDirective = "\t.extern\t";
-  //PrivateGlobalPrefix = ".L";
-
-  GlobalPrefix = "_";
-  PrivateGlobalPrefix = "_";
+  PrivateGlobalPrefix = ".L";
   GlobalDirective = "\t.global\t";
-  ExternDirective = "\t.extern\t";
+  WeakRefDirective ="\t.weak\t";
+  PCSymbol=".";
+  CommentString = ";";
+  IsLittleEndian = true;
+
+  AlignmentIsInBytes = true;
+  AlignDirective = "\t.align\t";
+  AllowNameToStartWithDigit = true;
+  UsesELFSectionDirectiveForBSS = false;
+  HasDotTypeDotSizeDirective = false;
 }
-
-

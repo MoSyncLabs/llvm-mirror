@@ -1,4 +1,4 @@
-//===-- MapipAsmPrinter.cpp - Mapip LLVM assembly writer ------------------===//
+//===-- MAPIPAsmPrinter.cpp - MAPIP LLVM assembly writer ----------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -8,252 +8,216 @@
 //===----------------------------------------------------------------------===//
 //
 // This file contains a printer that converts from our internal representation
-// of machine-dependent LLVM code to GAS-format MAPIP assembly language.
+// of machine-dependent LLVM code to the MAPIP assembly language.
 //
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "asm-printer"
 #include "Mapip.h"
 #include "MapipInstrInfo.h"
+#include "MapipMCInstLower.h"
 #include "MapipTargetMachine.h"
+#include "InstPrinter/MAPIPInstPrinter.h"
+#include "llvm/Constants.h"
+#include "llvm/DerivedTypes.h"
+#include "llvm/Module.h"
+#include "llvm/Assembly/Writer.h"
 #include "llvm/CodeGen/AsmPrinter.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Target/Mangler.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/SmallString.h"
+
 using namespace llvm;
 
 namespace {
-  class MapipAsmPrinter : public AsmPrinter {
+  class MAPIPAsmPrinter : public AsmPrinter {
   public:
-    explicit MapipAsmPrinter(TargetMachine &TM, MCStreamer &Streamer)
+    MAPIPAsmPrinter(TargetMachine &TM, MCStreamer &Streamer)
       : AsmPrinter(TM, Streamer) {}
 
     virtual const char *getPassName() const {
-      return "Mapip Assembly Printer";
+      return "MAPIP Assembly Printer";
     }
 
-    void printOperand(const MachineInstr *MI, int opNum, raw_ostream &OS);
-    void printMemOperand(const MachineInstr *MI, int opNum, raw_ostream &OS,
-                         const char *Modifier = 0);
-    void printCCOperand(const MachineInstr *MI, int opNum, raw_ostream &OS);
-
-    virtual void EmitInstruction(const MachineInstr *MI) {
-      SmallString<128> Str;
-      raw_svector_ostream OS(Str);
-      printInstruction(MI, OS);
-      OutStreamer.EmitRawText(OS.str());
-    }
-    void printInstruction(const MachineInstr *MI, raw_ostream &OS);// autogen'd.
-    static const char *getRegisterName(unsigned RegNo);
-
+    void printOperand(const MachineInstr *MI, int OpNum,
+                      raw_ostream &O, const char* Modifier = 0);
+    void printSrcMemOperand(const MachineInstr *MI, int OpNum,
+                            raw_ostream &O);
     bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                          unsigned AsmVariant, const char *ExtraCode,
                          raw_ostream &O);
-    bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo,
-                               unsigned AsmVariant, const char *ExtraCode,
-                               raw_ostream &O);
+    bool PrintAsmMemoryOperand(const MachineInstr *MI,
+                               unsigned OpNo, unsigned AsmVariant,
+                               const char *ExtraCode, raw_ostream &O);
+    void EmitInstruction(const MachineInstr *MI);
+    void EmitFunctionEntryLabel();
 
-    bool printGetPCX(const MachineInstr *MI, unsigned OpNo, raw_ostream &OS);
-    
-    virtual bool isBlockOnlyReachableByFallthrough(const MachineBasicBlock *MBB)
-                       const;
-
-    virtual MachineLocation getDebugValueLocation(const MachineInstr *MI) const;
   };
 } // end of anonymous namespace
 
-#include "MapipGenAsmWriter.inc"
 
-void MapipAsmPrinter::printOperand(const MachineInstr *MI, int opNum,
-                                   raw_ostream &O) {
-  const MachineOperand &MO = MI->getOperand (opNum);
-  bool CloseParen = false;
-  if (MI->getOpcode() == MAPIP::SETHIi && !MO.isReg() && !MO.isImm()) {
-    O << "%hi(";
-    CloseParen = true;
-  } else if ((MI->getOpcode() == MAPIP::ORri || MI->getOpcode() == MAPIP::ADDri) &&
-             !MO.isReg() && !MO.isImm()) {
-    O << "%lo(";
-    CloseParen = true;
-  }
+void MAPIPAsmPrinter::printOperand(const MachineInstr *MI, int OpNum,
+                                    raw_ostream &O, const char *Modifier) {
+  const MachineOperand &MO = MI->getOperand(OpNum);
   switch (MO.getType()) {
+  default: llvm_unreachable("Not implemented yet!");
   case MachineOperand::MO_Register:
-    O << "%" << StringRef(getRegisterName(MO.getReg())).lower();
-    break;
-
+    O << MAPIPInstPrinter::getRegisterName(MO.getReg());
+    return;
   case MachineOperand::MO_Immediate:
-    O << (int)MO.getImm();
-    break;
+    O << MO.getImm();
+    return;
   case MachineOperand::MO_MachineBasicBlock:
     O << *MO.getMBB()->getSymbol();
     return;
-  case MachineOperand::MO_GlobalAddress:
+  case MachineOperand::MO_GlobalAddress: {
+    bool isMemOp  = Modifier && !strcmp(Modifier, "mem");
+//    uint64_t Offset = MO.getOffset();
+    int64_t Offset = MO.getOffset();
+
+    if (isMemOp) O << '[';
     O << *Mang->getSymbol(MO.getGlobal());
-    break;
-  case MachineOperand::MO_ExternalSymbol:
-    O << MO.getSymbolName();
-    break;
-  case MachineOperand::MO_ConstantPoolIndex:
-    O << MAI->getPrivateGlobalPrefix() << "CPI" << getFunctionNumber() << "_"
-      << MO.getIndex();
-    break;
-  default:
-    llvm_unreachable("<unknown operand type>");
-  }
-  if (CloseParen) O << ")";
-}
+    if (Offset)
+//      O << '+' << Offset;
+        O << ',' << Offset;
+    if (isMemOp) O << ']';
 
-void MapipAsmPrinter::printMemOperand(const MachineInstr *MI, int opNum,
-                                      raw_ostream &O, const char *Modifier) {
-  printOperand(MI, opNum, O);
-
-  // If this is an ADD operand, emit it like normal operands.
-  if (Modifier && !strcmp(Modifier, "arith")) {
-    O << ", ";
-    printOperand(MI, opNum+1, O);
     return;
   }
+  case MachineOperand::MO_ExternalSymbol: {
+    bool isMemOp  = Modifier && !strcmp(Modifier, "mem");
+    if (isMemOp) O << '[';
+    O << MAI->getGlobalPrefix() << MO.getSymbolName();
+    if (isMemOp) O << ']';
+    return;
+  }
+  }
+}
 
-  if (MI->getOperand(opNum+1).isReg() &&
-      MI->getOperand(opNum+1).getReg() == MAPIP::G0)
-    return;   // don't print "+%g0"
-  if (MI->getOperand(opNum+1).isImm() &&
-      MI->getOperand(opNum+1).getImm() == 0)
-    return;   // don't print "+0"
+void MAPIPAsmPrinter::printSrcMemOperand(const MachineInstr *MI, int OpNum,
+                                          raw_ostream &O) {
+  const MachineOperand &Base = MI->getOperand(OpNum);
+  const MachineOperand &Disp = MI->getOperand(OpNum+1);
 
-  O << "+";
-  if (MI->getOperand(opNum+1).isGlobal() ||
-      MI->getOperand(opNum+1).isCPI()) {
-    O << "%lo(";
-    printOperand(MI, opNum+1, O);
-    O << ")";
+  // Special case for PICK n syntax
+/*
+  if (Base.getReg() == MAPIP::SP) {
+    if (Disp.isImm()) {
+      if (Disp.getImm() == 0) {
+        O << "PEEK";  // equiv. to [SP]
+      } else {
+        O << "PICK 0x"; // equiv. to [SP+x]
+        O.write_hex(Disp.getImm() & 0xFFFF);
+      }
+    } else {
+      llvm_unreachable("Unsupported src mem expression in inline asm");
+    }
+    return;
+  }
+*/
+
+  O << '[';
+
+  if (Base.getReg()) {
+    O << MAPIPInstPrinter::getRegisterName(Base.getReg());
+  }
+
+  if (Base.getReg()) {
+    // Only print the immediate if it isn't 0, easier to read and
+    // generates more efficient code on bad assemblers
+    if (Disp.getImm() != 0) {
+//      O << "+";
+        O << ",";
+
+      O << "0x";
+      //O.write_hex(Disp.getImm() & 0xFFFF);
+      O.write_hex(Disp.getImm());
+    }
   } else {
-    printOperand(MI, opNum+1, O);
-  }
-}
-
-bool MapipAsmPrinter::printGetPCX(const MachineInstr *MI, unsigned opNum,
-                                  raw_ostream &O) {
-  std::string operand = "";
-  const MachineOperand &MO = MI->getOperand(opNum);
-  switch (MO.getType()) {
-  default: llvm_unreachable("Operand is not a register");
-  case MachineOperand::MO_Register:
-    assert(TargetRegisterInfo::isPhysicalRegister(MO.getReg()) &&
-           "Operand is not a physical register ");
-    assert(MO.getReg() != MAPIP::O7 && 
-           "%o7 is assigned as destination for getpcx!");
-    operand = "%" + StringRef(getRegisterName(MO.getReg())).lower();
-    break;
+    O << "0x";
+//    O.write_hex(Disp.getImm() & 0xFFFF);
+      O.write_hex(Disp.getImm());
   }
 
-  unsigned mfNum = MI->getParent()->getParent()->getFunctionNumber();
-  unsigned bbNum = MI->getParent()->getNumber();
-
-  O << '\n' << ".LLGETPCH" << mfNum << '_' << bbNum << ":\n";
-  O << "\tcall\t.LLGETPC" << mfNum << '_' << bbNum << '\n' ;
-
-  O << "\t  sethi\t"
-    << "%hi(_GLOBAL_OFFSET_TABLE_+(.-.LLGETPCH" << mfNum << '_' << bbNum 
-    << ")), "  << operand << '\n' ;
-
-  O << ".LLGETPC" << mfNum << '_' << bbNum << ":\n" ;
-  O << "\tor\t" << operand  
-    << ", %lo(_GLOBAL_OFFSET_TABLE_+(.-.LLGETPCH" << mfNum << '_' << bbNum
-    << ")), " << operand << '\n';
-  O << "\tadd\t" << operand << ", %o7, " << operand << '\n'; 
-  
-  return true;
-}
-
-void MapipAsmPrinter::printCCOperand(const MachineInstr *MI, int opNum,
-                                     raw_ostream &O) {
-  int CC = (int)MI->getOperand(opNum).getImm();
-  O << MAPIPCondCodeToString((SPCC::CondCodes)CC);
+  O << ']';
 }
 
 /// PrintAsmOperand - Print out an operand for an inline asm expression.
 ///
-bool MapipAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
-                                      unsigned AsmVariant,
-                                      const char *ExtraCode,
-                                      raw_ostream &O) {
-  if (ExtraCode && ExtraCode[0]) {
-    if (ExtraCode[1] != 0) return true; // Unknown modifier.
-
-    switch (ExtraCode[0]) {
-    default: return true;  // Unknown modifier.
-    case 'r':
-     break;
-    }
-  }
+bool MAPIPAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
+                                       unsigned AsmVariant,
+                                       const char *ExtraCode, raw_ostream &O) {
+  // Does this asm operand have a single letter operand modifier?
+  if (ExtraCode && ExtraCode[0])
+    return true; // Unknown modifier.
 
   printOperand(MI, OpNo, O);
-
   return false;
 }
 
-bool MapipAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
-                                            unsigned OpNo, unsigned AsmVariant,
-                                            const char *ExtraCode,
-                                            raw_ostream &O) {
-  if (ExtraCode && ExtraCode[0])
-    return true;  // Unknown modifier
-
-  O << '[';
-  printMemOperand(MI, OpNo, O);
-  O << ']';
-
+bool MAPIPAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
+                                             unsigned OpNo, unsigned AsmVariant,
+                                             const char *ExtraCode,
+                                             raw_ostream &O) {
+  if (ExtraCode && ExtraCode[0]) {
+    return true; // Unknown modifier.
+  }
+  printSrcMemOperand(MI, OpNo, O);
   return false;
 }
 
-/// isBlockOnlyReachableByFallthough - Return true if the basic block has
-/// exactly one predecessor and the control transfer mechanism between
-/// the predecessor and this block is a fall-through.
-///
-/// This overrides AsmPrinter's implementation to handle delay slots.
-bool MapipAsmPrinter::
-isBlockOnlyReachableByFallthrough(const MachineBasicBlock *MBB) const {
-  // If this is a landing pad, it isn't a fall through.  If it has no preds,
-  // then nothing falls through to it.
-  if (MBB->isLandingPad() || MBB->pred_empty())
-    return false;
-  
-  // If there isn't exactly one predecessor, it can't be a fall through.
-  MachineBasicBlock::const_pred_iterator PI = MBB->pred_begin(), PI2 = PI;
-  ++PI2;
-  if (PI2 != MBB->pred_end())
-    return false;
-  
-  // The predecessor has to be immediately before this block.
-  const MachineBasicBlock *Pred = *PI;
-  
-  if (!Pred->isLayoutSuccessor(MBB))
-    return false;
-  
-  // Check if the last terminator is an unconditional branch.
-  MachineBasicBlock::const_iterator I = Pred->end();
-  while (I != Pred->begin() && !(--I)->isTerminator())
-    ; // Noop
-  return I == Pred->end() || !I->isBarrier();
+//===----------------------------------------------------------------------===//
+void MAPIPAsmPrinter::EmitInstruction(const MachineInstr *MI) {
+  MAPIPMCInstLower MCInstLowering(OutContext, *Mang, *this);
+
+  MCInst TmpInst;
+  MCInstLowering.Lower(MI, TmpInst);
+  OutStreamer.EmitInstruction(TmpInst);
 }
 
-MachineLocation MapipAsmPrinter::
-getDebugValueLocation(const MachineInstr *MI) const {
-  assert(MI->getNumOperands() == 4 && "Invalid number of operands!");
-  assert(MI->getOperand(0).isReg() && MI->getOperand(1).isImm() &&
-         "Unexpected MachineOperand types");
-  return MachineLocation(MI->getOperand(0).getReg(),
-                         MI->getOperand(1).getImm());
+void MAPIPAsmPrinter::EmitFunctionEntryLabel() {
+   std::string Str;
+   raw_string_ostream O(Str);
+
+   // The function label could have already been emitted if two symbols end up
+   // conflicting due to asm renaming.  Detect this and emit an error.
+   if (CurrentFnSym->isUndefined())
+   {
+     const Function* function = MF->getFunction();
+     Type* returnType = function->getReturnType();
+     const Function::ArgumentListType& arguments = function->getArgumentList();
+
+     O << ".func " << CurrentFnSym->getName() << ", " << arguments.size() << ", ";
+     if(returnType->isIntegerTy())
+         O << "int";
+     else if(returnType->isFloatTy())
+         O << "float";
+     else if(returnType->isDoubleTy())
+         O << "double";
+     else if(returnType->isVoidTy())
+         O << "void";
+     else
+         report_fatal_error("'" + Twine(CurrentFnSym->getName()) +
+                      "' invalid return type.");
+
+     OutStreamer.EmitRawText((StringRef)O.str());
+     return;
+   }
+
+   report_fatal_error("'" + Twine(CurrentFnSym->getName()) +
+                      "' label emitted multiple times to assembly file");
 }
 
 // Force static initialization.
-extern "C" void LLVMInitializeMapipAsmPrinter() { 
-  RegisterAsmPrinter<MapipAsmPrinter> X(TheMapipTarget);
-  //RegisterAsmPrinter<MapipAsmPrinter> Y(TheMapipV9Target);
+extern "C" void LLVMInitializeMapipAsmPrinter() {
+  RegisterAsmPrinter<MAPIPAsmPrinter> X(TheMAPIPTarget);
 }

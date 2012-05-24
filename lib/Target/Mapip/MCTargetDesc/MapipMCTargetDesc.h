@@ -1,4 +1,4 @@
-//===-- MapipMCTargetDesc.h - Mapip Target Descriptions ---------*- C++ -*-===//
+//===-- MAPIPMCTargetDesc.h - MAPIP Target Descriptions -------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file provides Mapip specific target descriptions.
+// This file provides MAPIP specific target descriptions.
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,19 +17,16 @@
 namespace llvm {
 class Target;
 
-extern Target TheMapipTarget;
-//extern Target TheMapipV9Target;
+extern Target TheMAPIPTarget;
 
 } // End llvm namespace
 
-// Defines symbolic names for Mapip registers.  This defines a mapping from
-// register name to register number.
-//
+// Defines symbolic names for MAPIP registers.
+// This defines a mapping from register name to register number.
 #define GET_REGINFO_ENUM
 #include "MapipGenRegisterInfo.inc"
 
-// Defines symbolic names for the Mapip instructions.
-//
+// Defines symbolic names for the MAPIP instructions.
 #define GET_INSTRINFO_ENUM
 #include "MapipGenInstrInfo.inc"
 

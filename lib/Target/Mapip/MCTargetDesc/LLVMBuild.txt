@@ -1,4 +1,4 @@
-;===- ./lib/Target/Mapip/MCTargetDesc/LLVMBuild.txt ------------*- Conf -*--===;
+;===- ./lib/Target/MAPIP/MCTargetDesc/LLVMBuild.txt -----------*- Conf -*--===;
 ;
 ;                     The LLVM Compiler Infrastructure
 ;
@@ -19,5 +19,5 @@
 type = Library
 name = MapipDesc
 parent = Mapip
-required_libraries = MC MapipInfo Support
+required_libraries = MC MapipAsmPrinter MapipInfo Support Target
 add_to_library_groups = Mapip

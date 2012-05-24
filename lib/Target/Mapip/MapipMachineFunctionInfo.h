@@ -1,4 +1,4 @@
-//===- MapipMachineFunctionInfo.h - Mapip Machine Function Info -*- C++ -*-===//
+//===- MAPIPMachineFuctionInfo.h - MAPIP machine function info -*- C++ -*-==//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,9 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file declares  Mapip specific per-machine-function information.
+// This file declares MAPIP-specific per-machine-function information.
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef MAPIPMACHINEFUNCTIONINFO_H
 #define MAPIPMACHINEFUNCTIONINFO_H
 
@@ -17,32 +18,31 @@
 
 namespace llvm {
 
-  class MapipMachineFunctionInfo : public MachineFunctionInfo {
-    virtual void anchor();
-  private:
-    unsigned GlobalBaseReg;
+/// MAPIPMachineFunctionInfo - This class is derived from MachineFunction and
+/// contains private MAPIP target-specific information for each MachineFunction.
+class MAPIPMachineFunctionInfo : public MachineFunctionInfo {
+  virtual void anchor();
 
-    /// VarArgsFrameOffset - Frame offset to start of varargs area.
-    int VarArgsFrameOffset;
+  /// CalleeSavedFrameSize - Size of the callee-saved register portion of the
+  /// stack frame in bytes.
+  unsigned CalleeSavedFrameSize;
 
-    /// SRetReturnReg - Holds the virtual register into which the sret
-    /// argument is passed.
-    unsigned SRetReturnReg;
-  public:
-    MapipMachineFunctionInfo()
-      : GlobalBaseReg(0), VarArgsFrameOffset(0), SRetReturnReg(0) {}
-    explicit MapipMachineFunctionInfo(MachineFunction &MF)
-      : GlobalBaseReg(0), VarArgsFrameOffset(0), SRetReturnReg(0) {}
+  /// ReturnAddrIndex - FrameIndex for return slot.
+  int ReturnAddrIndex;
 
-    unsigned getGlobalBaseReg() const { return GlobalBaseReg; }
-    void setGlobalBaseReg(unsigned Reg) { GlobalBaseReg = Reg; }
+public:
+  MAPIPMachineFunctionInfo() : CalleeSavedFrameSize(0) {}
 
-    int getVarArgsFrameOffset() const { return VarArgsFrameOffset; }
-    void setVarArgsFrameOffset(int Offset) { VarArgsFrameOffset = Offset; }
+  explicit MAPIPMachineFunctionInfo(MachineFunction &MF)
+    : CalleeSavedFrameSize(0), ReturnAddrIndex(0) {}
 
-    unsigned getSRetReturnReg() const { return SRetReturnReg; }
-    void setSRetReturnReg(unsigned Reg) { SRetReturnReg = Reg; }
-  };
-}
+  unsigned getCalleeSavedFrameSize() const { return CalleeSavedFrameSize; }
+  void setCalleeSavedFrameSize(unsigned bytes) { CalleeSavedFrameSize = bytes; }
+
+  int getRAIndex() const { return ReturnAddrIndex; }
+  void setRAIndex(int Index) { ReturnAddrIndex = Index; }
+};
+
+} // End llvm namespace
 
 #endif

@@ -1,4 +1,4 @@
-//===-- MapipInstrInfo.td - Target Description for Mapip Target -----------===//
+//===-- MAPIPInstrInfo.td - MAPIP Instruction defs -------*- tablegen -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,819 +7,457 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file describes the Mapip instructions in TableGen format.
+// This file describes the MAPIP instructions in TableGen format.
 //
-//===----------------------------------------------------------------------===//
-
-//===----------------------------------------------------------------------===//
-// Instruction format superclass
 //===----------------------------------------------------------------------===//
 
 include "MapipInstrFormats.td"
 
 //===----------------------------------------------------------------------===//
-// Feature predicates.
+// Type Constraints.
 //===----------------------------------------------------------------------===//
-
-// HasV9 - This predicate is true when the target processor supports V9
-// instructions.  Note that the machine may be running in 32-bit mode.
-def HasV9   : Predicate<"Subtarget.isV9()">;
-
-// HasNoV9 - This predicate is true when the target doesn't have V9
-// instructions.  Use of this is just a hack for the isel not having proper
-// costs for V8 instructions that are more expensive than their V9 ones.
-def HasNoV9 : Predicate<"!Subtarget.isV9()">;
-
-// HasVIS - This is true when the target processor has VIS extensions.
-def HasVIS : Predicate<"Subtarget.isVIS()">;
-
-// UseDeprecatedInsts - This predicate is true when the target processor is a
-// V8, or when it is V9 but the V8 deprecated instructions are efficient enough
-// to use when appropriate.  In either of these cases, the instruction selector
-// will pick deprecated instructions.
-def UseDeprecatedInsts : Predicate<"Subtarget.useDeprecatedV8Instructions()">;
+class SDTCisI16<int OpNum> : SDTCisVT<OpNum, i32>;
 
 //===----------------------------------------------------------------------===//
-// Instruction Pattern Stuff
+// Type Profiles.
 //===----------------------------------------------------------------------===//
+def SDT_MAPIPCall         : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
+def SDT_MAPIPCallSeqStart : SDCallSeqStart<[SDTCisVT<0, i32>]>;
+def SDT_MAPIPCallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+def SDT_MAPIPWrapper      : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>,
+                                                  SDTCisPtrTy<0>]>;
+def SDT_MAPIPBrCC         : SDTypeProfile<0, 4, [SDTCisVT<0, i32>,
+                                                  SDTCisSameAs<1, 0>,
+                                                  SDTCisSameAs<2, 1>,
+                                                  SDTCisVT<3, OtherVT>]>;
+def SDT_MAPIPSelectCC     : SDTypeProfile<1, 5, [SDTCisSameAs<0, 1>,
+                                                  SDTCisSameAs<1, 2>,
+                                                  SDTCisSameAs<2, 3>,
+                                                  SDTCisSameAs<3, 4>,
+                                                  SDTCisSameAs<4, 5>,
+                                                  SDTCisVT<5, i32>]>;
+def SDT_MAPIPBinOp        : SDTypeProfile<1, 2, [SDTCisSameAs<0, 1>,
+                                                  SDTCisSameAs<1, 2>,
+                                                  SDTCisI16<2>]>;
 
-def simm11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
+//===----------------------------------------------------------------------===//
+// MAPIP Specific Node Definitions.
+//===----------------------------------------------------------------------===//
+def MAPIPretflag  : SDNode<"MAPIPISD::RET_FLAG", SDTNone,
+                       [SDNPHasChain, SDNPOptInGlue]>;
+def MAPIPretiflag : SDNode<"MAPIPISD::RETI_FLAG", SDTNone,
+                       [SDNPHasChain, SDNPOptInGlue]>;
 
-def simm13  : PatLeaf<(imm), [{ return isInt<13>(N->getSExtValue()); }]>;
+def MAPIPcall     : SDNode<"MAPIPISD::CALL", SDT_MAPIPCall,
+                       [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
+def MAPIPcallseq_start :
+                     SDNode<"ISD::CALLSEQ_START", SDT_MAPIPCallSeqStart,
+                       [SDNPHasChain, SDNPOutGlue]>;
+def MAPIPcallseq_end :
+                     SDNode<"ISD::CALLSEQ_END",   SDT_MAPIPCallSeqEnd,
+                       [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+def MAPIPWrapper  : SDNode<"MAPIPISD::Wrapper", SDT_MAPIPWrapper>;
+def MAPIPbrcc     : SDNode<"MAPIPISD::BR_CC", SDT_MAPIPBrCC,
+                       [SDNPHasChain]>;
+def MAPIPselectcc : SDNode<"MAPIPISD::SELECT_CC", SDT_MAPIPSelectCC, []>;
+def MAPIPsmul     : SDNode<"MAPIPISD::SMUL", SDT_MAPIPBinOp,
+                       [SDNPHasChain, SDNPOutGlue]>;
+def MAPIPumul     : SDNode<"MAPIPISD::UMUL", SDT_MAPIPBinOp,
+                       [SDNPHasChain, SDNPOutGlue]>;
 
-def LO10 : SDNodeXForm<imm, [{
-  return CurDAG->getTargetConstant((unsigned)N->getZExtValue() & 1023,
-                                   MVT::i32);
-}]>;
-
-def HI22 : SDNodeXForm<imm, [{
-  // Transformation function: shift the immediate value down into the low bits.
-  return CurDAG->getTargetConstant((unsigned)N->getZExtValue() >> 10, MVT::i32);
-}]>;
-
-def SETHIimm : PatLeaf<(imm), [{
-  return (((unsigned)N->getZExtValue() >> 10) << 10) ==
-         (unsigned)N->getZExtValue();
-}], HI22>;
-
-// Addressing modes.
-def ADDRrr : ComplexPattern<i32, 2, "SelectADDRrr", [], []>;
-def ADDRri : ComplexPattern<i32, 2, "SelectADDRri", [frameindex], []>;
+//===----------------------------------------------------------------------===//
+// MAPIP Operand Definitions.
+//===----------------------------------------------------------------------===//
 
 // Address operands
-def MEMrr : Operand<i32> {
-  let PrintMethod = "printMemOperand";
-  let MIOperandInfo = (ops IntRegs, IntRegs);
-}
-def MEMri : Operand<i32> {
-  let PrintMethod = "printMemOperand";
-  let MIOperandInfo = (ops IntRegs, i32imm);
+def memsrc : Operand<i32> {
+  let PrintMethod = "printSrcMemOperand";
+  let MIOperandInfo = (ops GR16, i32imm);
 }
 
-// Branch targets have OtherVT type.
-def brtarget : Operand<OtherVT>;
-def calltarget : Operand<i32>;
+def memdst : Operand<i32> {
+  let PrintMethod = "printSrcMemOperand";
+  let MIOperandInfo = (ops GR16, i32imm);
+}
+
+// Short jump targets have OtherVT type and are printed as pcrel imm values.
+def jmptarget : Operand<OtherVT> {
+  let PrintMethod = "printPCRelImmOperand";
+}
 
 // Operand for printing out a condition code.
-let PrintMethod = "printCCOperand" in
-  def CCOp : Operand<i32>;
-
-def SDTMAPIPcmpfcc : 
-SDTypeProfile<0, 2, [SDTCisFP<0>, SDTCisSameAs<0, 1>]>;
-def SDTMAPIPbrcc : 
-SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>, SDTCisVT<1, i32>]>;
-def SDTMAPIPselectcc :
-SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>, SDTCisSameAs<1, 2>, SDTCisVT<3, i32>]>;
-def SDTMAPIPFTOI :
-SDTypeProfile<1, 1, [SDTCisVT<0, f32>, SDTCisFP<1>]>;
-def SDTMAPIPITOF :
-SDTypeProfile<1, 1, [SDTCisFP<0>, SDTCisVT<1, f32>]>;
-
-def MAPIPcmpicc : SDNode<"MAPIPISD::CMPICC", SDTIntBinOp, [SDNPOutGlue]>;
-def MAPIPcmpfcc : SDNode<"MAPIPISD::CMPFCC", SDTMAPIPcmpfcc, [SDNPOutGlue]>;
-def MAPIPbricc : SDNode<"MAPIPISD::BRICC", SDTMAPIPbrcc, [SDNPHasChain, SDNPInGlue]>;
-def MAPIPbrfcc : SDNode<"MAPIPISD::BRFCC", SDTMAPIPbrcc, [SDNPHasChain, SDNPInGlue]>;
-
-def MAPIPhi    : SDNode<"MAPIPISD::Hi", SDTIntUnaryOp>;
-def MAPIPlo    : SDNode<"MAPIPISD::Lo", SDTIntUnaryOp>;
-
-def MAPIPftoi  : SDNode<"MAPIPISD::FTOI", SDTMAPIPFTOI>;
-def MAPIPitof  : SDNode<"MAPIPISD::ITOF", SDTMAPIPITOF>;
-
-def MAPIPselecticc : SDNode<"MAPIPISD::SELECT_ICC", SDTMAPIPselectcc, [SDNPInGlue]>;
-def MAPIPselectfcc : SDNode<"MAPIPISD::SELECT_FCC", SDTMAPIPselectcc, [SDNPInGlue]>;
-
-//  These are target-independent nodes, but have target-specific formats.
-def SDT_MAPIPCallSeqStart : SDCallSeqStart<[ SDTCisVT<0, i32> ]>;
-def SDT_MAPIPCallSeqEnd   : SDCallSeqEnd<[ SDTCisVT<0, i32>,
-                                        SDTCisVT<1, i32> ]>;
-
-def callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_MAPIPCallSeqStart,
-                           [SDNPHasChain, SDNPOutGlue]>;
-def callseq_end   : SDNode<"ISD::CALLSEQ_END",   SDT_MAPIPCallSeqEnd,
-                           [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
-
-def SDT_MAPIPCall    : SDTypeProfile<0, -1, [SDTCisVT<0, i32>]>;
-def call          : SDNode<"MAPIPISD::CALL", SDT_MAPIPCall,
-                           [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
-                            SDNPVariadic]>;
-
-def SDT_MAPIPRet     : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
-def retflag       : SDNode<"MAPIPISD::RET_FLAG", SDT_MAPIPRet,
-                           [SDNPHasChain, SDNPOptInGlue]>;
-
-def flushw        : SDNode<"MAPIPISD::FLUSHW", SDTNone,
-                           [SDNPHasChain]>;
-
-def getPCX        : Operand<i32> {
-  let PrintMethod = "printGetPCX";
+def cc : Operand<i32> {
+  let PrintMethod = "printCCOperand";
 }
 
 //===----------------------------------------------------------------------===//
-// MAPIP Flag Conditions
+// MAPIP Complex Pattern Definitions.
 //===----------------------------------------------------------------------===//
 
-// Note that these values must be kept in sync with the CCOp::CondCode enum
-// values.
-class ICC_VAL<int N> : PatLeaf<(i32 N)>;
-def ICC_NE  : ICC_VAL< 9>;  // Not Equal
-def ICC_E   : ICC_VAL< 1>;  // Equal
-def ICC_G   : ICC_VAL<10>;  // Greater
-def ICC_LE  : ICC_VAL< 2>;  // Less or Equal
-def ICC_GE  : ICC_VAL<11>;  // Greater or Equal
-def ICC_L   : ICC_VAL< 3>;  // Less
-def ICC_GU  : ICC_VAL<12>;  // Greater Unsigned
-def ICC_LEU : ICC_VAL< 4>;  // Less or Equal Unsigned
-def ICC_CC  : ICC_VAL<13>;  // Carry Clear/Great or Equal Unsigned
-def ICC_CS  : ICC_VAL< 5>;  // Carry Set/Less Unsigned
-def ICC_POS : ICC_VAL<14>;  // Positive
-def ICC_NEG : ICC_VAL< 6>;  // Negative
-def ICC_VC  : ICC_VAL<15>;  // Overflow Clear
-def ICC_VS  : ICC_VAL< 7>;  // Overflow Set
-
-class FCC_VAL<int N> : PatLeaf<(i32 N)>;
-def FCC_U   : FCC_VAL<23>;  // Unordered
-def FCC_G   : FCC_VAL<22>;  // Greater
-def FCC_UG  : FCC_VAL<21>;  // Unordered or Greater
-def FCC_L   : FCC_VAL<20>;  // Less
-def FCC_UL  : FCC_VAL<19>;  // Unordered or Less
-def FCC_LG  : FCC_VAL<18>;  // Less or Greater
-def FCC_NE  : FCC_VAL<17>;  // Not Equal
-def FCC_E   : FCC_VAL<25>;  // Equal
-def FCC_UE  : FCC_VAL<24>;  // Unordered or Equal
-def FCC_GE  : FCC_VAL<25>;  // Greater or Equal
-def FCC_UGE : FCC_VAL<26>;  // Unordered or Greater or Equal
-def FCC_LE  : FCC_VAL<27>;  // Less or Equal
-def FCC_ULE : FCC_VAL<28>;  // Unordered or Less or Equal
-def FCC_O   : FCC_VAL<29>;  // Ordered
+def addr : ComplexPattern<iPTR, 2, "SelectAddr", [], []>;
 
 //===----------------------------------------------------------------------===//
-// Instruction Class Templates
+// Pattern Fragments
+def and_su : PatFrag<(ops node:$lhs, node:$rhs), (and node:$lhs, node:$rhs), [{
+  return N->hasOneUse();
+}]>;
 //===----------------------------------------------------------------------===//
+// Instruction list..
 
-/// F3_12 multiclass - Define a normal F3_1/F3_2 pattern in one shot.
-multiclass F3_12<string OpcStr, bits<6> Op3Val, SDNode OpNode> {
-  def rr  : F3_1<2, Op3Val, 
-                 (outs IntRegs:$dst), (ins IntRegs:$b, IntRegs:$c),
-                 !strconcat(OpcStr, " $b, $c, $dst"),
-                 [(set IntRegs:$dst, (OpNode IntRegs:$b, IntRegs:$c))]>;
-  def ri  : F3_2<2, Op3Val,
-                 (outs IntRegs:$dst), (ins IntRegs:$b, i32imm:$c),
-                 !strconcat(OpcStr, " $b, $c, $dst"),
-                 [(set IntRegs:$dst, (OpNode IntRegs:$b, simm13:$c))]>;
-}
-
-/// F3_12np multiclass - Define a normal F3_1/F3_2 pattern in one shot, with no
-/// pattern.
-multiclass F3_12np<string OpcStr, bits<6> Op3Val> {
-  def rr  : F3_1<2, Op3Val, 
-                 (outs IntRegs:$dst), (ins IntRegs:$b, IntRegs:$c),
-                 !strconcat(OpcStr, " $b, $c, $dst"), []>;
-  def ri  : F3_2<2, Op3Val,
-                 (outs IntRegs:$dst), (ins IntRegs:$b, i32imm:$c),
-                 !strconcat(OpcStr, " $b, $c, $dst"), []>;
-}
-
-//===----------------------------------------------------------------------===//
-// Instructions
-//===----------------------------------------------------------------------===//
-
-// Pseudo instructions.
-class Pseudo<dag outs, dag ins, string asmstr, list<dag> pattern>
-   : InstMAPIP<outs, ins, asmstr, pattern>;
-
-// GETPCX for PIC
-let Defs = [O7] in {
-  def GETPCX : Pseudo<(outs getPCX:$getpcseq), (ins), "$getpcseq", [] >;
-}
-
-let Defs = [O6], Uses = [O6] in {
+// ADJCALLSTACKDOWN/UP implicitly use/def SP because they may be expanded into
+// a stack adjustment and the codegen must know that they may modify the stack
+// pointer before prolog-epilog rewriting occurs.
+// Pessimistically assume ADJCALLSTACKDOWN / ADJCALLSTACKUP will become
+// sub / add which can clobber EX.
+let Defs = [SP, EX], Uses = [SP] in {
 def ADJCALLSTACKDOWN : Pseudo<(outs), (ins i32imm:$amt),
-                               "!ADJCALLSTACKDOWN $amt",
-                               [(callseq_start timm:$amt)]>;
-def ADJCALLSTACKUP : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
-                            "!ADJCALLSTACKUP $amt1",
-                            [(callseq_end timm:$amt1, timm:$amt2)]>;
+                              "#ADJCALLSTACKDOWN",
+                              [(MAPIPcallseq_start timm:$amt)]>;
+def ADJCALLSTACKUP   : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
+                              "#ADJCALLSTACKUP",
+                              [(MAPIPcallseq_end timm:$amt1, timm:$amt2)]>;
 }
 
-let hasSideEffects = 1, mayStore = 1 in {
-  let rd = 0, rs1 = 0, rs2 = 0 in
-    def FLUSHW : F3_1<0b10, 0b101011, (outs), (ins),
-                      "flushw",
-                      [(flushw)]>, Requires<[HasV9]>;
-  let rd = 0, rs1 = 1, simm13 = 3 in
-    def TA3 : F3_2<0b10, 0b111010, (outs), (ins),
-                   "ta 3",
-                   [(flushw)]>;
+// $dst _can_ be $falseV
+let Constraints = "@earlyclobber $dst" in {
+  // TODO: add more combinations, in particular memory access
+  def Select16rrrr : Pseudo<(outs GEXR16:$dst),
+                  (ins cc:$cc, GEXR16:$lhs, GEXR16:$rhs, GEXR16:$trueV, GEXR16:$falseV),
+                  "SET\t{$dst, $falseV}\n"
+                  "\t$cc\t{$lhs, $rhs}\n"
+                  "\tSET\t{$dst, $trueV}",
+                  [(set GEXR16:$dst,
+                    (MAPIPselectcc imm:$cc, GEXR16:$lhs, GEXR16:$rhs, GEXR16:$trueV, GEXR16:$falseV))]>;
+  def Select16rirr : Pseudo<(outs GEXR16:$dst),
+                  (ins cc:$cc, GEXR16:$lhs, i32imm:$rhs, GEXR16:$trueV, GEXR16:$falseV),
+                  "SET\t{$dst, $falseV}\n"
+                  "\t$cc\t{$lhs, $rhs}\n"
+                  "\tSET\t{$dst, $trueV}",
+                  [(set GEXR16:$dst,
+                    (MAPIPselectcc imm:$cc, GEXR16:$lhs, imm:$rhs, GEXR16:$trueV, GEXR16:$falseV))]>;
+  def Select16irrr : Pseudo<(outs GEXR16:$dst),
+                  (ins cc:$cc, i32imm:$lhs, GEXR16:$rhs, GEXR16:$trueV, GEXR16:$falseV),
+                  "SET\t{$dst, $falseV}\n"
+                  "\t$cc\t{$lhs, $rhs}\n"
+                  "\tSET\t{$dst, $trueV}",
+                  [(set GEXR16:$dst,
+                    (MAPIPselectcc imm:$cc, imm:$lhs, GEXR16:$rhs, GEXR16:$trueV, GEXR16:$falseV))]>;
+
+  def Select16rrii : Pseudo<(outs GEXR16:$dst),
+                  (ins cc:$cc, GEXR16:$lhs, GEXR16:$rhs, i32imm:$trueV, i32imm:$falseV),
+                  "SET\t{$dst, $falseV}\n"
+                  "\t$cc\t{$lhs, $rhs}\n"
+                  "\tSET\t{$dst, $trueV}",
+                  [(set GEXR16:$dst,
+                    (MAPIPselectcc imm:$cc, GEXR16:$lhs, GEXR16:$rhs, imm:$trueV, imm:$falseV))]>;
+  def Select16riii : Pseudo<(outs GEXR16:$dst),
+                  (ins cc:$cc, GEXR16:$lhs, i32imm:$rhs, i32imm:$trueV, i32imm:$falseV),
+                  "SET\t{$dst, $falseV}\n"
+                  "\t$cc\t{$lhs, $rhs}\n"
+                  "\tSET\t{$dst, $trueV}",
+                  [(set GEXR16:$dst,
+                    (MAPIPselectcc imm:$cc, GEXR16:$lhs, imm:$rhs, imm:$trueV, imm:$falseV))]>;
+  def Select16irii : Pseudo<(outs GEXR16:$dst),
+                  (ins cc:$cc, i32imm:$lhs, GEXR16:$rhs, i32imm:$trueV, i32imm:$falseV),
+                  "SET\t{$dst, $falseV}\n"
+                  "\t$cc\t{$lhs, $rhs}\n"
+                  "\tSET\t{$dst, $trueV}",
+                  [(set GEXR16:$dst,
+                    (MAPIPselectcc imm:$cc, imm:$lhs, GEXR16:$rhs, imm:$trueV, imm:$falseV))]>;
 }
 
-def UNIMP : F2_1<0b000, (outs), (ins i32imm:$val),
-                "unimp $val", []>;
+let neverHasSideEffects = 1 in
+def NOP : Pseudo<(outs), (ins), "nop", []>;
 
-// FpMOVD/FpNEGD/FpABSD - These are lowered to single-precision ops by the 
-// fpmover pass.
-let Predicates = [HasNoV9] in {  // Only emit these in V8 mode.
-  def FpMOVD : Pseudo<(outs DFPRegs:$dst), (ins DFPRegs:$src),
-                      "!FpMOVD $src, $dst", []>;
-  def FpNEGD : Pseudo<(outs DFPRegs:$dst), (ins DFPRegs:$src),
-                      "!FpNEGD $src, $dst",
-                      [(set DFPRegs:$dst, (fneg DFPRegs:$src))]>;
-  def FpABSD : Pseudo<(outs DFPRegs:$dst), (ins DFPRegs:$src),
-                      "!FpABSD $src, $dst",
-                      [(set DFPRegs:$dst, (fabs DFPRegs:$src))]>;
+//===----------------------------------------------------------------------===//
+//  Control Flow Instructions...
+//
+
+// FIXME: Provide proper encoding!
+let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
+  def RET  : IForm16<0x0, DstReg, SrcPostInc, Size2Bytes,
+                     (outs), (ins), "SET\t{PC, POP}",  [(MAPIPretflag)]>;
+  def RETI : II16r<0x0, (outs), (ins), "RFI", [(MAPIPretiflag)]>;
 }
 
-// SELECT_CC_* - Used to implement the SELECT_CC DAG operation.  Expanded after
-// instruction selection into a branch sequence.  This has to handle all
-// permutations of selection between i32/f32/f64 on ICC and FCC.
-  // Expanded after instruction selection.
-let Uses = [ICC], usesCustomInserter = 1 in { 
-  def SELECT_CC_Int_ICC
-   : Pseudo<(outs IntRegs:$dst), (ins IntRegs:$T, IntRegs:$F, i32imm:$Cond),
-            "; SELECT_CC_Int_ICC PSEUDO!",
-            [(set IntRegs:$dst, (MAPIPselecticc IntRegs:$T, IntRegs:$F,
-                                             imm:$Cond))]>;
-  def SELECT_CC_FP_ICC
-   : Pseudo<(outs FPRegs:$dst), (ins FPRegs:$T, FPRegs:$F, i32imm:$Cond),
-            "; SELECT_CC_FP_ICC PSEUDO!",
-            [(set FPRegs:$dst, (MAPIPselecticc FPRegs:$T, FPRegs:$F,
-                                            imm:$Cond))]>;
+let isBranch = 1, isTerminator = 1 in {
 
-  def SELECT_CC_DFP_ICC
-   : Pseudo<(outs DFPRegs:$dst), (ins DFPRegs:$T, DFPRegs:$F, i32imm:$Cond),
-            "; SELECT_CC_DFP_ICC PSEUDO!",
-            [(set DFPRegs:$dst, (MAPIPselecticc DFPRegs:$T, DFPRegs:$F,
-                                             imm:$Cond))]>;
+// FIXME: expand opcode & cond field for branches!
+
+// Direct branch
+let isBarrier = 1 in {
+  // Short branch
+  def JMP : CJForm<0, 0, (outs), (ins jmptarget:$dst),
+                   "SET\t{PC, $dst}",
+                   [(br bb:$dst)]>;
+  let isIndirectBranch = 1 in {
+    // Long branches
+    def Bi  : I16ri<0, (outs), (ins i32imm:$brdst),
+                    "br\t$brdst",
+                    [(brind tblockaddress:$brdst)]>;
+    def Br  : I16rr<0, (outs), (ins GEXR16:$brdst),
+                    "SET\t{pc, $brdst}",
+                    [(brind GEXR16:$brdst)]>;
+    def Bm  : I16rm<0, (outs), (ins memsrc:$brdst),
+                    "SET\t{pc, $brdst}",
+                    [(brind (load addr:$brdst))]>;
+  }
 }
 
-let usesCustomInserter = 1, Uses = [FCC] in {
+// Conditional branches
+// TODO: add memory versions
+def BR_CCrr : CJForm<0, 0,
+   (outs), (ins cc:$cc, GEXR16:$lhs, GEXR16:$rhs, jmptarget:$dst),
+   "$cc\t{$lhs, $rhs}\n"
+   "\tSET\t{PC, $dst}",
+   [(MAPIPbrcc imm:$cc, GEXR16:$lhs, GEXR16:$rhs, bb:$dst)]>;
+def BR_CCri : CJForm<0, 0,
+   (outs), (ins cc:$cc, GEXR16:$lhs, i32imm:$rhs, jmptarget:$dst),
+   "$cc\t{$lhs, $rhs}\n"
+   "\tSET\t{PC, $dst}",
+   [(MAPIPbrcc imm:$cc, GEXR16:$lhs, imm:$rhs, bb:$dst)]>;
+def BR_CCir : CJForm<0, 0,
+   (outs), (ins cc:$cc, i32imm:$lhs, GEXR16:$rhs, jmptarget:$dst),
+   "$cc\t{$lhs, $rhs}\n"
+   "\tSET\t{PC, $dst}",
+   [(MAPIPbrcc imm:$cc, imm:$lhs, GEXR16:$rhs, bb:$dst)]>;
+def BR_CCii : CJForm<0, 0,
+   (outs), (ins cc:$cc, i32imm:$lhs, i32imm:$rhs, jmptarget:$dst),
+   "$cc\t{$lhs, $rhs}\n"
+   "\tSET\t{PC, $dst}",
+   [(MAPIPbrcc imm:$cc, imm:$lhs, imm:$rhs, bb:$dst)]>;
+} // isBranch, isTerminator
 
-  def SELECT_CC_Int_FCC
-   : Pseudo<(outs IntRegs:$dst), (ins IntRegs:$T, IntRegs:$F, i32imm:$Cond),
-            "; SELECT_CC_Int_FCC PSEUDO!",
-            [(set IntRegs:$dst, (MAPIPselectfcc IntRegs:$T, IntRegs:$F,
-                                             imm:$Cond))]>;
+//===----------------------------------------------------------------------===//
+//  Call Instructions...
+//
+let isCall = 1 in
+  // All calls clobber the non-callee saved registers. SP is marked as
+  // a use to prevent stack-pointer assignments that appear immediately
+  // before calls from potentially appearing dead. Uses for argument
+  // registers are added manually.
+  let Defs = [EX],
+      Uses = [SP] in {
+    def CALLi     : II16i<0x0,
+                          (outs), (ins i32imm:$dst, variable_ops),
+                          "JSR\t$dst", [(MAPIPcall imm:$dst)]>;
+    def CALLr     : II16r<0x0,
+                          (outs), (ins GEXR16:$dst, variable_ops),
+                          "JSR\t$dst", [(MAPIPcall GEXR16:$dst)]>;
+    def CALLm     : II16m<0x0,
+                          (outs), (ins memsrc:$dst, variable_ops),
+                          "JSR\t${dst:mem}", [(MAPIPcall (load addr:$dst))]>;
+  }
 
-  def SELECT_CC_FP_FCC
-   : Pseudo<(outs FPRegs:$dst), (ins FPRegs:$T, FPRegs:$F, i32imm:$Cond),
-            "; SELECT_CC_FP_FCC PSEUDO!",
-            [(set FPRegs:$dst, (MAPIPselectfcc FPRegs:$T, FPRegs:$F,
-                                            imm:$Cond))]>;
-  def SELECT_CC_DFP_FCC
-   : Pseudo<(outs DFPRegs:$dst), (ins DFPRegs:$T, DFPRegs:$F, i32imm:$Cond),
-            "; SELECT_CC_DFP_FCC PSEUDO!",
-            [(set DFPRegs:$dst, (MAPIPselectfcc DFPRegs:$T, DFPRegs:$F,
-                                             imm:$Cond))]>;
+
+//===----------------------------------------------------------------------===//
+//  Miscellaneous Instructions...
+//
+let Defs = [SP], Uses = [SP], neverHasSideEffects=1 in {
+let mayLoad = 1 in
+def POP16r   : IForm16<0x0, DstReg, SrcPostInc, Size2Bytes,
+                       (outs GEXR16:$reg), (ins), "SET\t{$reg, POP}", []>;
+
+let mayStore = 1 in
+def PUSH16r  : II16r<0x0,
+                     (outs), (ins GEXR16:$reg), "SET\t{PUSH, $reg}",[]>;
 }
 
+//===----------------------------------------------------------------------===//
+// Move Instructions
 
-// Section A.3 - Synthetic Instructions, p. 85
-// special cases of JMPL:
-let isReturn = 1, isTerminator = 1, hasDelaySlot = 1, isBarrier = 1 in {
-  let rd = O7.Num, rs1 = G0.Num in
-    def RETL: F3_2<2, 0b111000, (outs), (ins i32imm:$val),
-                   "jmp %o7+$val", [(retflag simm13:$val)]>;
-
-  let rd = I7.Num, rs1 = G0.Num in
-    def RET: F3_2<2, 0b111000, (outs), (ins i32imm:$val),
-                  "jmp %i7+$val", []>;
+// FIXME: Provide proper encoding!
+let neverHasSideEffects = 1 in {
+def MOV16rr : I16rr<0x0,
+                    (outs GEXR16:$dst), (ins GEXR16:$src),
+                    "SET\t{$dst, $src}",
+                    []>;
 }
 
-// Section B.1 - Load Integer Instructions, p. 90
-def LDSBrr : F3_1<3, 0b001001,
-                  (outs IntRegs:$dst), (ins MEMrr:$addr),
-                  "ldsb [$addr], $dst",
-                  [(set IntRegs:$dst, (sextloadi8 ADDRrr:$addr))]>;
-def LDSBri : F3_2<3, 0b001001,
-                  (outs IntRegs:$dst), (ins MEMri:$addr),
-                  "ldsb [$addr], $dst",
-                  [(set IntRegs:$dst, (sextloadi8 ADDRri:$addr))]>;
-def LDSHrr : F3_1<3, 0b001010,
-                  (outs IntRegs:$dst), (ins MEMrr:$addr),
-                  "ldsh [$addr], $dst",
-                  [(set IntRegs:$dst, (sextloadi16 ADDRrr:$addr))]>;
-def LDSHri : F3_2<3, 0b001010,
-                  (outs IntRegs:$dst), (ins MEMri:$addr),
-                  "ldsh [$addr], $dst",
-                  [(set IntRegs:$dst, (sextloadi16 ADDRri:$addr))]>;
-def LDUBrr : F3_1<3, 0b000001,
-                  (outs IntRegs:$dst), (ins MEMrr:$addr),
-                  "ldub [$addr], $dst",
-                  [(set IntRegs:$dst, (zextloadi8 ADDRrr:$addr))]>;
-def LDUBri : F3_2<3, 0b000001,
-                  (outs IntRegs:$dst), (ins MEMri:$addr),
-                  "ldub [$addr], $dst",
-                  [(set IntRegs:$dst, (zextloadi8 ADDRri:$addr))]>;
-def LDUHrr : F3_1<3, 0b000010,
-                  (outs IntRegs:$dst), (ins MEMrr:$addr),
-                  "lduh [$addr], $dst",
-                  [(set IntRegs:$dst, (zextloadi16 ADDRrr:$addr))]>;
-def LDUHri : F3_2<3, 0b000010,
-                  (outs IntRegs:$dst), (ins MEMri:$addr),
-                  "lduh [$addr], $dst",
-                  [(set IntRegs:$dst, (zextloadi16 ADDRri:$addr))]>;
-def LDrr   : F3_1<3, 0b000000,
-                  (outs IntRegs:$dst), (ins MEMrr:$addr),
-                  "ld [$addr], $dst",
-                  [(set IntRegs:$dst, (load ADDRrr:$addr))]>;
-def LDri   : F3_2<3, 0b000000,
-                  (outs IntRegs:$dst), (ins MEMri:$addr),
-                  "ld [$addr], $dst",
-                  [(set IntRegs:$dst, (load ADDRri:$addr))]>;
-
-// Section B.2 - Load Floating-point Instructions, p. 92
-def LDFrr  : F3_1<3, 0b100000,
-                  (outs FPRegs:$dst), (ins MEMrr:$addr),
-                  "ld [$addr], $dst",
-                  [(set FPRegs:$dst, (load ADDRrr:$addr))]>;
-def LDFri  : F3_2<3, 0b100000,
-                  (outs FPRegs:$dst), (ins MEMri:$addr),
-                  "ld [$addr], $dst",
-                  [(set FPRegs:$dst, (load ADDRri:$addr))]>;
-def LDDFrr : F3_1<3, 0b100011,
-                  (outs DFPRegs:$dst), (ins MEMrr:$addr),
-                  "ldd [$addr], $dst",
-                  [(set DFPRegs:$dst, (load ADDRrr:$addr))]>;
-def LDDFri : F3_2<3, 0b100011,
-                  (outs DFPRegs:$dst), (ins MEMri:$addr),
-                  "ldd [$addr], $dst",
-                  [(set DFPRegs:$dst, (load ADDRri:$addr))]>;
-
-// Section B.4 - Store Integer Instructions, p. 95
-def STBrr : F3_1<3, 0b000101,
-                 (outs), (ins MEMrr:$addr, IntRegs:$src),
-                 "stb $src, [$addr]",
-                 [(truncstorei8 IntRegs:$src, ADDRrr:$addr)]>;
-def STBri : F3_2<3, 0b000101,
-                 (outs), (ins MEMri:$addr, IntRegs:$src),
-                 "stb $src, [$addr]",
-                 [(truncstorei8 IntRegs:$src, ADDRri:$addr)]>;
-def STHrr : F3_1<3, 0b000110,
-                 (outs), (ins MEMrr:$addr, IntRegs:$src),
-                 "sth $src, [$addr]",
-                 [(truncstorei16 IntRegs:$src, ADDRrr:$addr)]>;
-def STHri : F3_2<3, 0b000110,
-                 (outs), (ins MEMri:$addr, IntRegs:$src),
-                 "sth $src, [$addr]",
-                 [(truncstorei16 IntRegs:$src, ADDRri:$addr)]>;
-def STrr  : F3_1<3, 0b000100,
-                 (outs), (ins MEMrr:$addr, IntRegs:$src),
-                 "st $src, [$addr]",
-                 [(store IntRegs:$src, ADDRrr:$addr)]>;
-def STri  : F3_2<3, 0b000100,
-                 (outs), (ins MEMri:$addr, IntRegs:$src),
-                 "st $src, [$addr]",
-                 [(store IntRegs:$src, ADDRri:$addr)]>;
-
-// Section B.5 - Store Floating-point Instructions, p. 97
-def STFrr   : F3_1<3, 0b100100,
-                   (outs), (ins MEMrr:$addr, FPRegs:$src),
-                   "st $src, [$addr]",
-                   [(store FPRegs:$src, ADDRrr:$addr)]>;
-def STFri   : F3_2<3, 0b100100,
-                   (outs), (ins MEMri:$addr, FPRegs:$src),
-                   "st $src, [$addr]",
-                   [(store FPRegs:$src, ADDRri:$addr)]>;
-def STDFrr  : F3_1<3, 0b100111,
-                   (outs), (ins MEMrr:$addr, DFPRegs:$src),
-                   "std  $src, [$addr]",
-                   [(store DFPRegs:$src, ADDRrr:$addr)]>;
-def STDFri  : F3_2<3, 0b100111,
-                   (outs), (ins MEMri:$addr, DFPRegs:$src),
-                   "std $src, [$addr]",
-                   [(store DFPRegs:$src, ADDRri:$addr)]>;
-
-// Section B.9 - SETHI Instruction, p. 104
-def SETHIi: F2_1<0b100,
-                 (outs IntRegs:$dst), (ins i32imm:$src),
-                 "sethi $src, $dst",
-                 [(set IntRegs:$dst, SETHIimm:$src)]>;
-
-// Section B.10 - NOP Instruction, p. 105
-// (It's a special case of SETHI)
-let rd = 0, imm22 = 0 in
-  def NOP : F2_1<0b100, (outs), (ins), "nop", []>;
-
-// Section B.11 - Logical Instructions, p. 106
-defm AND    : F3_12<"and", 0b000001, and>;
-
-def ANDNrr  : F3_1<2, 0b000101,
-                   (outs IntRegs:$dst), (ins IntRegs:$b, IntRegs:$c),
-                   "andn $b, $c, $dst",
-                   [(set IntRegs:$dst, (and IntRegs:$b, (not IntRegs:$c)))]>;
-def ANDNri  : F3_2<2, 0b000101,
-                   (outs IntRegs:$dst), (ins IntRegs:$b, i32imm:$c),
-                   "andn $b, $c, $dst", []>;
-
-defm OR     : F3_12<"or", 0b000010, or>;
-
-def ORNrr   : F3_1<2, 0b000110,
-                   (outs IntRegs:$dst), (ins IntRegs:$b, IntRegs:$c),
-                   "orn $b, $c, $dst",
-                   [(set IntRegs:$dst, (or IntRegs:$b, (not IntRegs:$c)))]>;
-def ORNri   : F3_2<2, 0b000110,
-                   (outs IntRegs:$dst), (ins IntRegs:$b, i32imm:$c),
-                   "orn $b, $c, $dst", []>;
-defm XOR    : F3_12<"xor", 0b000011, xor>;
-
-def XNORrr  : F3_1<2, 0b000111,
-                   (outs IntRegs:$dst), (ins IntRegs:$b, IntRegs:$c),
-                   "xnor $b, $c, $dst",
-                   [(set IntRegs:$dst, (not (xor IntRegs:$b, IntRegs:$c)))]>;
-def XNORri  : F3_2<2, 0b000111,
-                   (outs IntRegs:$dst), (ins IntRegs:$b, i32imm:$c),
-                   "xnor $b, $c, $dst", []>;
-
-// Section B.12 - Shift Instructions, p. 107
-defm SLL : F3_12<"sll", 0b100101, shl>;
-defm SRL : F3_12<"srl", 0b100110, srl>;
-defm SRA : F3_12<"sra", 0b100111, sra>;
-
-// Section B.13 - Add Instructions, p. 108
-defm ADD   : F3_12<"add", 0b000000, add>;
-
-// "LEA" forms of add (patterns to make tblgen happy)
-def LEA_ADDri   : F3_2<2, 0b000000,
-                   (outs IntRegs:$dst), (ins MEMri:$addr),
-                   "add ${addr:arith}, $dst",
-                   [(set IntRegs:$dst, ADDRri:$addr)]>;
-
-let Defs = [ICC] in                   
-  defm ADDCC  : F3_12<"addcc", 0b010000, addc>;
-
-let Uses = [ICC] in
-  defm ADDX  : F3_12<"addx", 0b001000, adde>;
-
-// Section B.15 - Subtract Instructions, p. 110
-defm SUB    : F3_12  <"sub"  , 0b000100, sub>;
-let Uses = [ICC] in 
-  defm SUBX   : F3_12  <"subx" , 0b001100, sube>;
-
-let Defs = [ICC] in 
-  defm SUBCC  : F3_12  <"subcc", 0b010100, MAPIPcmpicc>;
-
-let Uses = [ICC], Defs = [ICC] in
-  def SUBXCCrr: F3_1<2, 0b011100, 
-                (outs IntRegs:$dst), (ins IntRegs:$b, IntRegs:$c),
-                "subxcc $b, $c, $dst", []>;
-
-
-// Section B.18 - Multiply Instructions, p. 113
-let Defs = [Y] in {
-  defm UMUL : F3_12np<"umul", 0b001010>;
-  defm SMUL : F3_12  <"smul", 0b001011, mul>;
+// FIXME: Provide proper encoding!
+let isReMaterializable = 1, isAsCheapAsAMove = 1 in {
+def MOV16ri : I16ri<0x0,
+                    (outs GEXR16:$dst), (ins i32imm:$src),
+                    "SET\t{$dst, $src}",
+                    [(set GEXR16:$dst, imm:$src)]>;
 }
 
-// Section B.19 - Divide Instructions, p. 115
-let Defs = [Y] in {
-  defm UDIV : F3_12np<"udiv", 0b001110>;
-  defm SDIV : F3_12np<"sdiv", 0b001111>;
+let canFoldAsLoad = 1, isReMaterializable = 1 in {
+def MOV16rm : I16rm<0x0,
+                    (outs GEXR16:$dst), (ins memsrc:$src),
+                    "SET\t{$dst, $src}",
+                    [(set GEXR16:$dst, (load addr:$src))]>;
 }
 
-// Section B.20 - SAVE and RESTORE, p. 117
-defm SAVE    : F3_12np<"save"   , 0b111100>;
-defm RESTORE : F3_12np<"restore", 0b111101>;
-
-// Section B.21 - Branch on Integer Condition Codes Instructions, p. 119
-
-// conditional branch class:
-class BranchMAPIP<bits<4> cc, dag ins, string asmstr, list<dag> pattern>
- : F2_2<cc, 0b010, (outs), ins, asmstr, pattern> {
-  let isBranch = 1;
-  let isTerminator = 1;
-  let hasDelaySlot = 1;
+let canFoldAsLoad = 1, isReMaterializable = 1 in {
+def MOV16rmi8 : I16rm<0x0,
+                    (outs GEXR16:$dst), (ins memsrc:$src),
+                    "SET\t{$dst, $src}",
+                    [(set GEXR16:$dst, (zextloadi8 addr:$src))]>;
 }
 
-let isBarrier = 1 in
-  def BA   : BranchMAPIP<0b1000, (ins brtarget:$dst),
-                      "ba $dst",
-                      [(br bb:$dst)]>;
+def MOV16mi : I16mi<0x0,
+                    (outs), (ins memdst:$dst, i32imm:$src),
+                    "SET\t{$dst, $src}",
+                    [(store (i32 imm:$src), addr:$dst)]>;
 
-// FIXME: the encoding for the JIT should look at the condition field.
-let Uses = [ICC] in
-  def BCOND : BranchMAPIP<0, (ins brtarget:$dst, CCOp:$cc),
-                         "b$cc $dst",
-                        [(MAPIPbricc bb:$dst, imm:$cc)]>;
+def MOV16mr : I16mr<0x0,
+                    (outs), (ins memdst:$dst, GEXR16:$src),
+                    "SET\t{$dst, $src}",
+                    [(store GEXR16:$src, addr:$dst)]>;
 
+def MOV16mm : I16mm<0x0,
+                    (outs), (ins memdst:$dst, memsrc:$src),
+                    "SET\t{$dst, $src}",
+                    [(store (i32 (load addr:$src)), addr:$dst)]>;
 
-// Section B.22 - Branch on Floating-point Condition Codes Instructions, p. 121
+//===----------------------------------------------------------------------===//
+// Multiclasses for arithmetic instructions
 
-// floating-point conditional branch class:
-class FPBranchMAPIP<bits<4> cc, dag ins, string asmstr, list<dag> pattern>
- : F2_2<cc, 0b110, (outs), ins, asmstr, pattern> {
-  let isBranch = 1;
-  let isTerminator = 1;
-  let hasDelaySlot = 1;
+multiclass BASIC_RR_IS_COM<bits<4> OpVal, string OpcStr, SDNode OpNode> {
+  let Constraints = "$src = $dst", isCommutable = 1 in {
+  def rr: I16rr<OpVal,
+                    (outs GR16:$dst), (ins GR16:$src, GEXR16:$src2),
+                    OpcStr#"\t{$dst, $src2}",
+                    [(set GR16:$dst, (OpNode GR16:$src, GEXR16:$src2)),
+                     (implicit EX)]>;
+  }
 }
 
-// FIXME: the encoding for the JIT should look at the condition field.
-let Uses = [FCC] in
-  def FBCOND  : FPBranchMAPIP<0, (ins brtarget:$dst, CCOp:$cc),
-                              "fb$cc $dst",
-                              [(MAPIPbrfcc bb:$dst, imm:$cc)]>;
+multiclass BASIC_RR_NON_COM<bits<4> OpVal, string OpcStr, SDNode OpNode> {
+  let Constraints = "$src = $dst" in {
+  def rr: I16rr<OpVal,
+                    (outs GR16:$dst), (ins GR16:$src, GEXR16:$src2),
+                    OpcStr#"\t{$dst, $src2}",
+                    [(set GR16:$dst, (OpNode GR16:$src, GEXR16:$src2)),
+                     (implicit EX)]>;
+  }
+}
 
-
-// Section B.24 - Call and Link Instruction, p. 125
-// This is the only Format 1 instruction
-let Uses = [O6],
-    hasDelaySlot = 1, isCall = 1,
-    Defs = [O0, O1, O2, O3, O4, O5, O7, G1, G2, G3, G4, G5, G6, G7,
-    D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12, D13, D14, D15,
-        ICC, FCC, Y] in {
-  def CALL : InstMAPIP<(outs), (ins calltarget:$dst, variable_ops),
-                    "call $dst", []> {
-    bits<30> disp;
-    let op = 1;
-    let Inst{29-0} = disp;
+multiclass BASIC_NORMAL<bits<4> OpVal, string OpcStr, SDNode OpNode> {
+  let Constraints = "$src = $dst" in {
+  def rm: I16rm<OpVal,
+                    (outs GR16:$dst), (ins GR16:$src, memsrc:$src2),
+                    OpcStr#"\t{$dst, $src2}",
+                    [(set GR16:$dst, (OpNode GR16:$src, (load addr:$src2))),
+                     (implicit EX)]>;
+  def ri: I16ri<OpVal,
+                    (outs GR16:$dst), (ins GR16:$src, i32imm:$src2),
+                    OpcStr#"\t{$dst, $src2}",
+                    [(set GR16:$dst, (OpNode GR16:$src, imm:$src2)),
+                     (implicit EX)]>;
+  }
+  let Constraints = "" in {
+  def mr: I16mr<OpVal,
+                    (outs), (ins memdst:$dst, GEXR16:$src),
+                    OpcStr#"\t{$dst, $src}",
+                    [(store (OpNode (load addr:$dst), GEXR16:$src), addr:$dst),
+                     (implicit EX)]>;
+  def mi: I16mi<OpVal,
+                    (outs), (ins memdst:$dst, i32imm:$src),
+                    OpcStr#"\t{$dst, $src}",
+                    [(store (OpNode (load addr:$dst), (i32 imm:$src)), addr:$dst),
+                     (implicit EX)]>;
+  def mm: I16mm<OpVal,
+                    (outs), (ins memdst:$dst, memsrc:$src),
+                    OpcStr#"\t{$dst, $src}",
+                    [(store (OpNode (load addr:$dst),
+                                  (i32 (load addr:$src))), addr:$dst),
+                     (implicit EX)]>;
   }
   
-  // indirect calls
-  def JMPLrr : F3_1<2, 0b111000,
-                    (outs), (ins MEMrr:$ptr, variable_ops),
-                    "call $ptr",
-                    [(call ADDRrr:$ptr)]>;
-  def JMPLri : F3_2<2, 0b111000,
-                    (outs), (ins MEMri:$ptr, variable_ops),
-                    "call $ptr",
-                    [(call ADDRri:$ptr)]>;
-}
-
-// Section B.28 - Read State Register Instructions
-let Uses = [Y] in 
-  def RDY : F3_1<2, 0b101000,
-                 (outs IntRegs:$dst), (ins),
-                 "rd %y, $dst", []>;
-
-// Section B.29 - Write State Register Instructions
-let Defs = [Y] in {
-  def WRYrr : F3_1<2, 0b110000,
-                   (outs), (ins IntRegs:$b, IntRegs:$c),
-                   "wr $b, $c, %y", []>;
-  def WRYri : F3_2<2, 0b110000,
-                   (outs), (ins IntRegs:$b, i32imm:$c),
-                   "wr $b, $c, %y", []>;
-}
-// Convert Integer to Floating-point Instructions, p. 141
-def FITOS : F3_3<2, 0b110100, 0b011000100,
-                 (outs FPRegs:$dst), (ins FPRegs:$src),
-                 "fitos $src, $dst",
-                 [(set FPRegs:$dst, (MAPIPitof FPRegs:$src))]>;
-def FITOD : F3_3<2, 0b110100, 0b011001000, 
-                 (outs DFPRegs:$dst), (ins FPRegs:$src),
-                 "fitod $src, $dst",
-                 [(set DFPRegs:$dst, (MAPIPitof FPRegs:$src))]>;
-
-// Convert Floating-point to Integer Instructions, p. 142
-def FSTOI : F3_3<2, 0b110100, 0b011010001,
-                 (outs FPRegs:$dst), (ins FPRegs:$src),
-                 "fstoi $src, $dst",
-                 [(set FPRegs:$dst, (MAPIPftoi FPRegs:$src))]>;
-def FDTOI : F3_3<2, 0b110100, 0b011010010,
-                 (outs FPRegs:$dst), (ins DFPRegs:$src),
-                 "fdtoi $src, $dst",
-                 [(set FPRegs:$dst, (MAPIPftoi DFPRegs:$src))]>;
-
-// Convert between Floating-point Formats Instructions, p. 143
-def FSTOD : F3_3<2, 0b110100, 0b011001001, 
-                 (outs DFPRegs:$dst), (ins FPRegs:$src),
-                 "fstod $src, $dst",
-                 [(set DFPRegs:$dst, (fextend FPRegs:$src))]>;
-def FDTOS : F3_3<2, 0b110100, 0b011000110,
-                 (outs FPRegs:$dst), (ins DFPRegs:$src),
-                 "fdtos $src, $dst",
-                 [(set FPRegs:$dst, (fround DFPRegs:$src))]>;
-
-// Floating-point Move Instructions, p. 144
-def FMOVS : F3_3<2, 0b110100, 0b000000001,
-                 (outs FPRegs:$dst), (ins FPRegs:$src),
-                 "fmovs $src, $dst", []>;
-def FNEGS : F3_3<2, 0b110100, 0b000000101, 
-                 (outs FPRegs:$dst), (ins FPRegs:$src),
-                 "fnegs $src, $dst",
-                 [(set FPRegs:$dst, (fneg FPRegs:$src))]>;
-def FABSS : F3_3<2, 0b110100, 0b000001001, 
-                 (outs FPRegs:$dst), (ins FPRegs:$src),
-                 "fabss $src, $dst",
-                 [(set FPRegs:$dst, (fabs FPRegs:$src))]>;
-
-
-// Floating-point Square Root Instructions, p.145
-def FSQRTS : F3_3<2, 0b110100, 0b000101001, 
-                  (outs FPRegs:$dst), (ins FPRegs:$src),
-                  "fsqrts $src, $dst",
-                  [(set FPRegs:$dst, (fsqrt FPRegs:$src))]>;
-def FSQRTD : F3_3<2, 0b110100, 0b000101010, 
-                  (outs DFPRegs:$dst), (ins DFPRegs:$src),
-                  "fsqrtd $src, $dst",
-                  [(set DFPRegs:$dst, (fsqrt DFPRegs:$src))]>;
-
-
-
-// Floating-point Add and Subtract Instructions, p. 146
-def FADDS  : F3_3<2, 0b110100, 0b001000001,
-                  (outs FPRegs:$dst), (ins FPRegs:$src1, FPRegs:$src2),
-                  "fadds $src1, $src2, $dst",
-                  [(set FPRegs:$dst, (fadd FPRegs:$src1, FPRegs:$src2))]>;
-def FADDD  : F3_3<2, 0b110100, 0b001000010,
-                  (outs DFPRegs:$dst), (ins DFPRegs:$src1, DFPRegs:$src2),
-                  "faddd $src1, $src2, $dst",
-                  [(set DFPRegs:$dst, (fadd DFPRegs:$src1, DFPRegs:$src2))]>;
-def FSUBS  : F3_3<2, 0b110100, 0b001000101,
-                  (outs FPRegs:$dst), (ins FPRegs:$src1, FPRegs:$src2),
-                  "fsubs $src1, $src2, $dst",
-                  [(set FPRegs:$dst, (fsub FPRegs:$src1, FPRegs:$src2))]>;
-def FSUBD  : F3_3<2, 0b110100, 0b001000110,
-                  (outs DFPRegs:$dst), (ins DFPRegs:$src1, DFPRegs:$src2),
-                  "fsubd $src1, $src2, $dst",
-                  [(set DFPRegs:$dst, (fsub DFPRegs:$src1, DFPRegs:$src2))]>;
-
-// Floating-point Multiply and Divide Instructions, p. 147
-def FMULS  : F3_3<2, 0b110100, 0b001001001,
-                  (outs FPRegs:$dst), (ins FPRegs:$src1, FPRegs:$src2),
-                  "fmuls $src1, $src2, $dst",
-                  [(set FPRegs:$dst, (fmul FPRegs:$src1, FPRegs:$src2))]>;
-def FMULD  : F3_3<2, 0b110100, 0b001001010,
-                  (outs DFPRegs:$dst), (ins DFPRegs:$src1, DFPRegs:$src2),
-                  "fmuld $src1, $src2, $dst",
-                  [(set DFPRegs:$dst, (fmul DFPRegs:$src1, DFPRegs:$src2))]>;
-def FSMULD : F3_3<2, 0b110100, 0b001101001,
-                  (outs DFPRegs:$dst), (ins FPRegs:$src1, FPRegs:$src2),
-                  "fsmuld $src1, $src2, $dst",
-                  [(set DFPRegs:$dst, (fmul (fextend FPRegs:$src1),
-                                            (fextend FPRegs:$src2)))]>;
-def FDIVS  : F3_3<2, 0b110100, 0b001001101,
-                 (outs FPRegs:$dst), (ins FPRegs:$src1, FPRegs:$src2),
-                 "fdivs $src1, $src2, $dst",
-                 [(set FPRegs:$dst, (fdiv FPRegs:$src1, FPRegs:$src2))]>;
-def FDIVD  : F3_3<2, 0b110100, 0b001001110,
-                 (outs DFPRegs:$dst), (ins DFPRegs:$src1, DFPRegs:$src2),
-                 "fdivd $src1, $src2, $dst",
-                 [(set DFPRegs:$dst, (fdiv DFPRegs:$src1, DFPRegs:$src2))]>;
-
-// Floating-point Compare Instructions, p. 148
-// Note: the 2nd template arg is different for these guys.
-// Note 2: the result of a FCMP is not available until the 2nd cycle
-// after the instr is retired, but there is no interlock. This behavior
-// is modelled with a forced noop after the instruction.
-let Defs = [FCC] in {
-  def FCMPS  : F3_3<2, 0b110101, 0b001010001,
-                   (outs), (ins FPRegs:$src1, FPRegs:$src2),
-                   "fcmps $src1, $src2\n\tnop",
-                   [(MAPIPcmpfcc FPRegs:$src1, FPRegs:$src2)]>;
-  def FCMPD  : F3_3<2, 0b110101, 0b001010010,
-                   (outs), (ins DFPRegs:$src1, DFPRegs:$src2),
-                   "fcmpd $src1, $src2\n\tnop",
-                   [(MAPIPcmpfcc DFPRegs:$src1, DFPRegs:$src2)]>;
+  // FIXME! Wrong zero extend
+  let Constraints = "$src = $dst", canFoldAsLoad = 1, isReMaterializable = 1 in {
+  def rmi8 : I16rm<OpVal,
+                    (outs GR16:$dst), (ins GR16:$src, memsrc:$src2),
+					OpcStr#"\t{$dst, $src}",
+                    [(set GR16:$dst, (OpNode GR16:$src, (zextloadi8 addr:$src2))),
+                     (implicit EX)]>;
+  }  
 }
 
 //===----------------------------------------------------------------------===//
-// V9 Instructions
-//===----------------------------------------------------------------------===//
+// Arithmetic Instructions
 
-// V9 Conditional Moves.
-let Predicates = [HasV9], Constraints = "$T = $dst" in {
-  // Move Integer Register on Condition (MOVcc) p. 194 of the V9 manual.
-  // FIXME: Add instruction encodings for the JIT some day.
-  let Uses = [ICC] in {
-    def MOVICCrr
-      : Pseudo<(outs IntRegs:$dst), (ins IntRegs:$T, IntRegs:$F, CCOp:$cc),
-               "mov$cc %icc, $F, $dst",
-               [(set IntRegs:$dst,
-                           (MAPIPselecticc IntRegs:$F, IntRegs:$T, imm:$cc))]>;
-    def MOVICCri
-      : Pseudo<(outs IntRegs:$dst), (ins IntRegs:$T, i32imm:$F, CCOp:$cc),
-               "mov$cc %icc, $F, $dst",
-               [(set IntRegs:$dst,
-                            (MAPIPselecticc simm11:$F, IntRegs:$T, imm:$cc))]>;
+let Defs = [EX] in {
+  defm ADD16   : BASIC_RR_IS_COM <0x0, "ADD", add>,  BASIC_NORMAL<0x0, "ADD", add>;
+  defm AND16   : BASIC_RR_IS_COM <0x0, "AND", and>,  BASIC_NORMAL<0x0, "AND", and>;
+  defm OR16    : BASIC_RR_IS_COM <0x0, "BOR", or>,   BASIC_NORMAL<0x0, "BOR", or>;
+  defm XOR16   : BASIC_RR_IS_COM <0x0, "XOR", xor>,  BASIC_NORMAL<0x0, "XOR", xor>;
+  defm SUB16   : BASIC_RR_NON_COM<0x0, "SUB", sub>,  BASIC_NORMAL<0x0, "SUB", sub>;
+  defm MUL16   : BASIC_RR_IS_COM <0x0, "MUL", mul>,  BASIC_NORMAL<0x0, "MUL", mul>;
+  defm SMUL16  : BASIC_RR_IS_COM <0x0, "MLI", MAPIPsmul>,
+                   BASIC_NORMAL<0x0, "MLI", MAPIPsmul>;
+  defm UMUL16  : BASIC_RR_IS_COM <0x0, "MUL", MAPIPumul>,
+                   BASIC_NORMAL<0x0, "MUL", MAPIPumul>;
+  defm DIV16   : BASIC_RR_NON_COM<0x0, "DIV", udiv>, BASIC_NORMAL<0x0, "DIV", udiv>;
+  defm DVI16   : BASIC_RR_NON_COM<0x0, "DVI", sdiv>, BASIC_NORMAL<0x0, "DVI", sdiv>;
+  defm SRL16   : BASIC_RR_NON_COM<0x0, "SHR", srl>,  BASIC_NORMAL<0x0, "SHR", srl>;
+  defm SRA16   : BASIC_RR_NON_COM<0x0, "ASR", sra>,  BASIC_NORMAL<0x0, "ASR", sra>;
+  defm SHL16   : BASIC_RR_NON_COM<0x0, "SHL", shl>,  BASIC_NORMAL<0x0, "SHL", shl>;
+  defm UREM16  : BASIC_RR_NON_COM<0x0, "MOD", urem>, BASIC_NORMAL<0x0, "MOD", urem>;
+  defm SREM16  : BASIC_RR_NON_COM<0x0, "MDI", srem>, BASIC_NORMAL<0x0, "MDI", srem>;
+
+  let Uses = [EX] in {
+    defm ADC16   : BASIC_RR_IS_COM <0x0, "ADX", adde>, BASIC_NORMAL<0x0, "ADX", adde>;
+    defm SBC16   : BASIC_RR_NON_COM<0x0, "SBX", sube>, BASIC_NORMAL<0x0, "SBX", sube>;
   }
 
-  let Uses = [FCC] in {
-    def MOVFCCrr
-      : Pseudo<(outs IntRegs:$dst), (ins IntRegs:$T, IntRegs:$F, CCOp:$cc),
-               "mov$cc %fcc0, $F, $dst",
-               [(set IntRegs:$dst,
-                           (MAPIPselectfcc IntRegs:$F, IntRegs:$T, imm:$cc))]>;
-    def MOVFCCri
-      : Pseudo<(outs IntRegs:$dst), (ins IntRegs:$T, i32imm:$F, CCOp:$cc),
-               "mov$cc %fcc0, $F, $dst",
-               [(set IntRegs:$dst,
-                            (MAPIPselectfcc simm11:$F, IntRegs:$T, imm:$cc))]>;
-  }
+} // Defs = [EX]
 
-  let Uses = [ICC] in {
-    def FMOVS_ICC
-      : Pseudo<(outs FPRegs:$dst), (ins FPRegs:$T, FPRegs:$F, CCOp:$cc),
-               "fmovs$cc %icc, $F, $dst",
-               [(set FPRegs:$dst,
-                           (MAPIPselecticc FPRegs:$F, FPRegs:$T, imm:$cc))]>;
-    def FMOVD_ICC
-      : Pseudo<(outs DFPRegs:$dst), (ins DFPRegs:$T, DFPRegs:$F, CCOp:$cc),
-               "fmovd$cc %icc, $F, $dst",
-               [(set DFPRegs:$dst,
-                           (MAPIPselecticc DFPRegs:$F, DFPRegs:$T, imm:$cc))]>;
-  }
-
-  let Uses = [FCC] in {
-    def FMOVS_FCC
-      : Pseudo<(outs FPRegs:$dst), (ins FPRegs:$T, FPRegs:$F, CCOp:$cc),
-               "fmovs$cc %fcc0, $F, $dst",
-               [(set FPRegs:$dst,
-                           (MAPIPselectfcc FPRegs:$F, FPRegs:$T, imm:$cc))]>;
-    def FMOVD_FCC
-      : Pseudo<(outs DFPRegs:$dst), (ins DFPRegs:$T, DFPRegs:$F, CCOp:$cc),
-               "fmovd$cc %fcc0, $F, $dst",
-               [(set DFPRegs:$dst,
-                           (MAPIPselectfcc DFPRegs:$F, DFPRegs:$T, imm:$cc))]>;
-  }
-
-}
-
-// Floating-Point Move Instructions, p. 164 of the V9 manual.
-let Predicates = [HasV9] in {
-  def FMOVD : F3_3<2, 0b110100, 0b000000010,
-                   (outs DFPRegs:$dst), (ins DFPRegs:$src),
-                   "fmovd $src, $dst", []>;
-  def FNEGD : F3_3<2, 0b110100, 0b000000110, 
-                   (outs DFPRegs:$dst), (ins DFPRegs:$src),
-                   "fnegd $src, $dst",
-                   [(set DFPRegs:$dst, (fneg DFPRegs:$src))]>;
-  def FABSD : F3_3<2, 0b110100, 0b000001010, 
-                   (outs DFPRegs:$dst), (ins DFPRegs:$src),
-                   "fabsd $src, $dst",
-                   [(set DFPRegs:$dst, (fabs DFPRegs:$src))]>;
-}
-
-// POPCrr - This does a ctpop of a 64-bit register.  As such, we have to clear
-// the top 32-bits before using it.  To do this clearing, we use a SLLri X,0.
-def POPCrr : F3_1<2, 0b101110, 
-                  (outs IntRegs:$dst), (ins IntRegs:$src),
-                  "popc $src, $dst", []>, Requires<[HasV9]>;
-def : Pat<(ctpop IntRegs:$src),
-          (POPCrr (SLLri IntRegs:$src, 0))>;
 
 //===----------------------------------------------------------------------===//
 // Non-Instruction Patterns
-//===----------------------------------------------------------------------===//
 
-// Small immediates.
-def : Pat<(i32 simm13:$val),
-          (ORri G0, imm:$val)>;
-// Arbitrary immediates.
-def : Pat<(i32 imm:$val),
-          (ORri (SETHIi (HI22 imm:$val)), (LO10 imm:$val))>;
+// GlobalAddress, ExternalSymbol
+def : Pat<(i32 (MAPIPWrapper tglobaladdr:$dst)), (MOV16ri tglobaladdr:$dst)>;
+def : Pat<(i32 (MAPIPWrapper texternalsym:$dst)), (MOV16ri texternalsym:$dst)>;
+def : Pat<(i32 (MAPIPWrapper tblockaddress:$dst)), (MOV16ri tblockaddress:$dst)>;
+def : Pat<(i32 (MAPIPWrapper tjumptable:$dst)), (MOV16ri tjumptable:$dst)>;
 
-// subc
-def : Pat<(subc IntRegs:$b, IntRegs:$c),
-          (SUBCCrr IntRegs:$b, IntRegs:$c)>;
-def : Pat<(subc IntRegs:$b, simm13:$val),
-          (SUBCCri IntRegs:$b, imm:$val)>;
+def : Pat<(add GR16:$src, (MAPIPWrapper tglobaladdr :$src2)),
+          (ADD16ri GR16:$src, tglobaladdr:$src2)>;
+def : Pat<(add GR16:$src, (MAPIPWrapper texternalsym:$src2)),
+          (ADD16ri GR16:$src, texternalsym:$src2)>;
+def : Pat<(add GR16:$src, (MAPIPWrapper tblockaddress:$src2)),
+          (ADD16ri GR16:$src, tblockaddress:$src2)>;
+def : Pat<(add GR16:$src, (MAPIPWrapper tjumptable:$src2)),
+          (ADD16ri GR16:$src, tjumptable:$src2)>;
 
-// Global addresses, constant pool entries
-def : Pat<(MAPIPhi tglobaladdr:$in), (SETHIi tglobaladdr:$in)>;
-def : Pat<(MAPIPlo tglobaladdr:$in), (ORri G0, tglobaladdr:$in)>;
-def : Pat<(MAPIPhi tconstpool:$in), (SETHIi tconstpool:$in)>;
-def : Pat<(MAPIPlo tconstpool:$in), (ORri G0, tconstpool:$in)>;
+def : Pat<(store (i32 (MAPIPWrapper tglobaladdr:$src)), addr:$dst),
+          (MOV16mi addr:$dst, tglobaladdr:$src)>;
+def : Pat<(store (i32 (MAPIPWrapper texternalsym:$src)), addr:$dst),
+          (MOV16mi addr:$dst, texternalsym:$src)>;
+def : Pat<(store (i32 (MAPIPWrapper tblockaddress:$src)), addr:$dst),
+          (MOV16mi addr:$dst, tblockaddress:$src)>;
+def : Pat<(store (i32 (MAPIPWrapper tjumptable:$src)), addr:$dst),
+          (MOV16mi addr:$dst, tjumptable:$src)>;
 
-// Add reg, lo.  This is used when taking the addr of a global/constpool entry.
-def : Pat<(add IntRegs:$r, (MAPIPlo tglobaladdr:$in)),
-          (ADDri IntRegs:$r, tglobaladdr:$in)>;
-def : Pat<(add IntRegs:$r, (MAPIPlo tconstpool:$in)),
-          (ADDri IntRegs:$r, tconstpool:$in)>;
+// calls
+def : Pat<(MAPIPcall (i32 tglobaladdr:$dst)),
+          (CALLi tglobaladdr:$dst)>;
+def : Pat<(MAPIPcall (i32 texternalsym:$dst)),
+          (CALLi texternalsym:$dst)>;
 
-// Calls: 
-def : Pat<(call tglobaladdr:$dst),
-          (CALL tglobaladdr:$dst)>;
-def : Pat<(call texternalsym:$dst),
-          (CALL texternalsym:$dst)>;
+// add and sub always produce carry
+def : Pat<(addc GR16:$src, GR16:$src2),
+          (ADD16rr GR16:$src, GR16:$src2)>;
+def : Pat<(addc GR16:$src, (load addr:$src2)),
+          (ADD16rm GR16:$src, addr:$src2)>;
+def : Pat<(addc GR16:$src, imm:$src2),
+          (ADD16ri GR16:$src, imm:$src2)>;
+def : Pat<(store (addc (load addr:$dst), GR16:$src), addr:$dst),
+          (ADD16mr addr:$dst, GR16:$src)>;
+def : Pat<(store (addc (load addr:$dst), (i32 (load addr:$src))), addr:$dst),
+          (ADD16mm addr:$dst, addr:$src)>;
 
-// Map integer extload's to zextloads.
-def : Pat<(i32 (extloadi1 ADDRrr:$src)), (LDUBrr ADDRrr:$src)>;
-def : Pat<(i32 (extloadi1 ADDRri:$src)), (LDUBri ADDRri:$src)>;
-def : Pat<(i32 (extloadi8 ADDRrr:$src)), (LDUBrr ADDRrr:$src)>;
-def : Pat<(i32 (extloadi8 ADDRri:$src)), (LDUBri ADDRri:$src)>;
-def : Pat<(i32 (extloadi16 ADDRrr:$src)), (LDUHrr ADDRrr:$src)>;
-def : Pat<(i32 (extloadi16 ADDRri:$src)), (LDUHri ADDRri:$src)>;
-
-// zextload bool -> zextload byte
-def : Pat<(i32 (zextloadi1 ADDRrr:$src)), (LDUBrr ADDRrr:$src)>;
-def : Pat<(i32 (zextloadi1 ADDRri:$src)), (LDUBri ADDRri:$src)>;
+def : Pat<(subc GR16:$src, GR16:$src2),
+          (SUB16rr GR16:$src, GR16:$src2)>;
+def : Pat<(subc GR16:$src, (load addr:$src2)),
+          (SUB16rm GR16:$src, addr:$src2)>;
+def : Pat<(subc GR16:$src, imm:$src2),
+          (SUB16ri GR16:$src, imm:$src2)>;
+def : Pat<(store (subc (load addr:$dst), GR16:$src), addr:$dst),
+          (SUB16mr addr:$dst, GR16:$src)>;
+def : Pat<(store (subc (load addr:$dst), (i32 (load addr:$src))), addr:$dst),
+          (SUB16mm addr:$dst, addr:$src)>;

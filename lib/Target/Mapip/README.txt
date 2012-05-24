@@ -1,59 +1,40 @@
+//===---------------------------------------------------------------------===//
+// MAPIP backend.
+//===---------------------------------------------------------------------===//
 
-To-do
------
+DISCLAIMER: Thid backend should be considered as highly experimental. I never
+seen nor worked with this MCU, all information was gathered from datasheet
+only. The original intention of making this backend was to write documentation
+of form "How to write backend for dummies" :) Thes notes hopefully will be
+available pretty soon.
 
-* Keep the address of the constant pool in a register instead of forming its
-  address all of the time.
-* We can fold small constant offsets into the %hi/%lo references to constant
-  pool addresses as well.
-* When in V9 mode, register allocate %icc[0-3].
-* Add support for isel'ing UMUL_LOHI instead of marking it as Expand.
-* Emit the 'Branch on Integer Register with Prediction' instructions.  It's
-  not clear how to write a pattern for this though:
+Some things are incomplete / not implemented yet (this list surely is not
+complete as well):
 
-float %t1(int %a, int* %p) {
-        %C = seteq int %a, 0
-        br bool %C, label %T, label %F
-T:
-        store int 123, int* %p
-        br label %F
-F:
-        ret float undef
-}
+1. Verify, how stuff is handling implicit zext with 8 bit operands (this might
+be modelled currently in improper way - should we need to mark the superreg as
+def for every 8 bit instruction?).
 
-codegens to this:
+2. Libcalls: multiplication, division, remainder. Note, that calling convention
+for libcalls is incomptible with calling convention of libcalls of mapip-gcc
+(these cannot be used though due to license restriction).
 
-t1:
-        save -96, %o6, %o6
-1)      subcc %i0, 0, %l0
-1)      bne .LBBt1_2    ! F
-        nop
-.LBBt1_1:       ! T
-        or %g0, 123, %l0
-        st %l0, [%i1]
-.LBBt1_2:       ! F
-        restore %g0, %g0, %g0
-        retl
-        nop
+3. Implement multiplication / division by constant (dag combiner hook?).
 
-1) should be replaced with a brz in V9 mode.
+4. Implement non-constant shifts.
 
-* Same as above, but emit conditional move on register zero (p192) in V9 
-  mode.  Testcase:
+5. Implement varargs stuff.
 
-int %t1(int %a, int %b) {
-        %C = seteq int %a, 0
-        %D = select bool %C, int %a, int %b
-        ret int %D
-}
+6. Verify and fix (if needed) how's stuff playing with i32 / i64.
 
-* Emit MULX/[SU]DIVX instructions in V9 mode instead of fiddling 
-  with the Y register, if they are faster.
+7. Implement floating point stuff (softfp?)
 
-* Codegen bswap(load)/store(bswap) -> load/store ASI
+8. Implement instruction encoding for (possible) direct code emission in the
+future.
 
-* Implement frame pointer elimination, e.g. eliminate save/restore for 
-  leaf fns.
-* Fill delay slots
+9. Since almost all instructions set flags - implement brcond / select in better
+way (currently they emit explicit comparison).
 
-* Implement JIT support
+10. Handle imm in comparisons in better way (see comment in MAPIPInstrInfo.td)
+
+11. Implement hooks for better memory op folding, etc.

@@ -1,4 +1,4 @@
-//===-- MapipInstrInfo.cpp - Mapip Instruction Information ----------------===//
+//===-- MAPIPInstrInfo.cpp - MAPIP Instruction Information --------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,43 +7,83 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the Mapip implementation of the TargetInstrInfo class.
+// This file contains the MAPIP implementation of the TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
 
 #include "MapipInstrInfo.h"
 #include "Mapip.h"
 #include "MapipMachineFunctionInfo.h"
-#include "MapipSubtarget.h"
+#include "MapipTargetMachine.h"
+#include "llvm/Function.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetRegistry.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
 
 #define GET_INSTRINFO_CTOR
-#include "MapipGenInstrInfo.inc"
+#include "MAPIPGenInstrInfo.inc"
 
 using namespace llvm;
 
-MapipInstrInfo::MapipInstrInfo(MapipSubtarget &ST)
-  : MapipGenInstrInfo(MAPIP::ADJCALLSTACKDOWN, MAPIP::ADJCALLSTACKUP),
-    RI(ST, *this), Subtarget(ST) {
+MAPIPInstrInfo::MAPIPInstrInfo(MAPIPTargetMachine &tm)
+  : MAPIPGenInstrInfo(MAPIP::ADJCALLSTACKDOWN, MAPIP::ADJCALLSTACKUP),
+    RI(tm, *this), TM(tm) {}
+
+void MAPIPInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
+                                          MachineBasicBlock::iterator MI,
+                                    unsigned SrcReg, bool isKill, int FrameIdx,
+                                          const TargetRegisterClass *RC,
+                                          const TargetRegisterInfo *TRI) const {
+  DebugLoc DL;
+  if (MI != MBB.end()) DL = MI->getDebugLoc();
+  MachineFunction &MF = *MBB.getParent();
+  MachineFrameInfo &MFI = *MF.getFrameInfo();
+
+  MachineMemOperand *MMO =
+    MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(FrameIdx),
+                            MachineMemOperand::MOStore,
+                            MFI.getObjectSize(FrameIdx),
+                            MFI.getObjectAlignment(FrameIdx));
+
+  if (RC == &MAPIP::GR16RegClass || RC == &MAPIP::GEXR16RegClass)
+    BuildMI(MBB, MI, DL, get(MAPIP::MOV16mr))
+      .addFrameIndex(FrameIdx).addImm(0)
+      .addReg(SrcReg, getKillRegState(isKill)).addMemOperand(MMO);
+  else
+    llvm_unreachable("Cannot store this register to stack slot!");
 }
 
-/// isLoadFromStackSlot - If the specified machine instruction is a direct
-/// load from a stack slot, return the virtual or physical register number of
-/// the destination along with the FrameIndex of the loaded stack slot.  If
-/// not, return 0.  This predicate must return 0 if the instruction has
-/// any side effects other than loading from the stack slot.
-unsigned MapipInstrInfo::isLoadFromStackSlot(const MachineInstr *MI,
-                                             int &FrameIndex) const {
-  if (MI->getOpcode() == MAPIP::LDri ||
-      MI->getOpcode() == MAPIP::LDFri ||
-      MI->getOpcode() == MAPIP::LDDFri) {
-    if (MI->getOperand(1).isFI() && MI->getOperand(2).isImm() &&
-        MI->getOperand(2).getImm() == 0) {
+void MAPIPInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                           MachineBasicBlock::iterator MI,
+                                           unsigned DestReg, int FrameIdx,
+                                           const TargetRegisterClass *RC,
+                                           const TargetRegisterInfo *TRI) const{
+  DebugLoc DL;
+  if (MI != MBB.end()) DL = MI->getDebugLoc();
+  MachineFunction &MF = *MBB.getParent();
+  MachineFrameInfo &MFI = *MF.getFrameInfo();
+
+  MachineMemOperand *MMO =
+    MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(FrameIdx),
+                            MachineMemOperand::MOLoad,
+                            MFI.getObjectSize(FrameIdx),
+                            MFI.getObjectAlignment(FrameIdx));
+
+  if (RC == &MAPIP::GR16RegClass || RC == &MAPIP::GEXR16RegClass)
+    BuildMI(MBB, MI, DL, get(MAPIP::MOV16rm), DestReg)
+      .addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
+  else
+    llvm_unreachable("Cannot store this register to stack slot!");
+}
+
+unsigned MAPIPInstrInfo::isLoadFromStackSlot(const MachineInstr *MI,
+                                              int &FrameIndex) const {
+  if (MI->getOpcode() == MAPIP::MOV16rm) {
+    if (MI->getOperand(1).isFI()) {
+      // MOV reg, [SP+idx]
+      // operand 0 is dest reg, 1 is frame index, 2 immediate 0
       FrameIndex = MI->getOperand(1).getIndex();
       return MI->getOperand(0).getReg();
     }
@@ -51,18 +91,12 @@ unsigned MapipInstrInfo::isLoadFromStackSlot(const MachineInstr *MI,
   return 0;
 }
 
-/// isStoreToStackSlot - If the specified machine instruction is a direct
-/// store to a stack slot, return the virtual or physical register number of
-/// the source reg along with the FrameIndex of the loaded stack slot.  If
-/// not, return 0.  This predicate must return 0 if the instruction has
-/// any side effects other than storing to the stack slot.
-unsigned MapipInstrInfo::isStoreToStackSlot(const MachineInstr *MI,
+unsigned MAPIPInstrInfo::isStoreToStackSlot(const MachineInstr *MI,
                                             int &FrameIndex) const {
-  if (MI->getOpcode() == MAPIP::STri ||
-      MI->getOpcode() == MAPIP::STFri ||
-      MI->getOpcode() == MAPIP::STDFri) {
-    if (MI->getOperand(0).isFI() && MI->getOperand(1).isImm() &&
-        MI->getOperand(1).getImm() == 0) {
+  if (MI->getOpcode() == MAPIP::MOV16mr) {
+    if (MI->getOperand(0).isFI()) {
+      // MOV [SP+idx], reg
+      // operand 0 is frame index, 1 is immediate 0, 2 is register
       FrameIndex = MI->getOperand(0).getIndex();
       return MI->getOperand(2).getReg();
     }
@@ -70,288 +104,343 @@ unsigned MapipInstrInfo::isStoreToStackSlot(const MachineInstr *MI,
   return 0;
 }
 
-static bool IsIntegerCC(unsigned CC)
-{
-  return  (CC <= SPCC::ICC_VC);
+void MAPIPInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator I, DebugLoc DL,
+                                  unsigned DestReg, unsigned SrcReg,
+                                  bool KillSrc) const {
+
+  // An interesting aspect of MAPIP is that all the registers,
+  // including PC, SP and O are valid SET arguments. So, it's
+  // legal to say SET PC, O; It just usually does not make sense.
+  unsigned Opc = MAPIP::MOV16rr;
+
+  BuildMI(MBB, I, DL, get(Opc), DestReg)
+    .addReg(SrcReg, getKillRegState(KillSrc));
 }
 
-
-static SPCC::CondCodes GetOppositeBranchCondition(SPCC::CondCodes CC)
-{
-  switch(CC) {
-  case SPCC::ICC_NE:   return SPCC::ICC_E;
-  case SPCC::ICC_E:    return SPCC::ICC_NE;
-  case SPCC::ICC_G:    return SPCC::ICC_LE;
-  case SPCC::ICC_LE:   return SPCC::ICC_G;
-  case SPCC::ICC_GE:   return SPCC::ICC_L;
-  case SPCC::ICC_L:    return SPCC::ICC_GE;
-  case SPCC::ICC_GU:   return SPCC::ICC_LEU;
-  case SPCC::ICC_LEU:  return SPCC::ICC_GU;
-  case SPCC::ICC_CC:   return SPCC::ICC_CS;
-  case SPCC::ICC_CS:   return SPCC::ICC_CC;
-  case SPCC::ICC_POS:  return SPCC::ICC_NEG;
-  case SPCC::ICC_NEG:  return SPCC::ICC_POS;
-  case SPCC::ICC_VC:   return SPCC::ICC_VS;
-  case SPCC::ICC_VS:   return SPCC::ICC_VC;
-
-  case SPCC::FCC_U:    return SPCC::FCC_O;
-  case SPCC::FCC_O:    return SPCC::FCC_U;
-  case SPCC::FCC_G:    return SPCC::FCC_LE;
-  case SPCC::FCC_LE:   return SPCC::FCC_G;
-  case SPCC::FCC_UG:   return SPCC::FCC_ULE;
-  case SPCC::FCC_ULE:  return SPCC::FCC_UG;
-  case SPCC::FCC_L:    return SPCC::FCC_GE;
-  case SPCC::FCC_GE:   return SPCC::FCC_L;
-  case SPCC::FCC_UL:   return SPCC::FCC_UGE;
-  case SPCC::FCC_UGE:  return SPCC::FCC_UL;
-  case SPCC::FCC_LG:   return SPCC::FCC_UE;
-  case SPCC::FCC_UE:   return SPCC::FCC_LG;
-  case SPCC::FCC_NE:   return SPCC::FCC_E;
-  case SPCC::FCC_E:    return SPCC::FCC_NE;
+static bool isBR_CC(unsigned Opcode) {
+  switch (Opcode) {
+    default: return false;
+    case MAPIP::BR_CCrr:
+    case MAPIP::BR_CCri:
+    case MAPIP::BR_CCir:
+    case MAPIP::BR_CCii:
+      return true;
   }
-  llvm_unreachable("Invalid cond code");
 }
 
-MachineInstr *
-MapipInstrInfo::emitFrameIndexDebugValue(MachineFunction &MF,
-                                         int FrameIx,
-                                         uint64_t Offset,
-                                         const MDNode *MDPtr,
-                                         DebugLoc dl) const {
-  MachineInstrBuilder MIB = BuildMI(MF, dl, get(MAPIP::DBG_VALUE))
-    .addFrameIndex(FrameIx).addImm(0).addImm(Offset).addMetadata(MDPtr);
-  return &*MIB;
-}
-
-
-bool MapipInstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,
-                                   MachineBasicBlock *&TBB,
-                                   MachineBasicBlock *&FBB,
-                                   SmallVectorImpl<MachineOperand> &Cond,
-                                   bool AllowModify) const
-{
-
+unsigned MAPIPInstrInfo::RemoveBranch(MachineBasicBlock &MBB) const {
   MachineBasicBlock::iterator I = MBB.end();
-  MachineBasicBlock::iterator UnCondBrIter = MBB.end();
+  unsigned Count = 0;
+
   while (I != MBB.begin()) {
     --I;
+    if (I->isDebugValue())
+      continue;
+    if (I->getOpcode() != MAPIP::JMP &&
+        !isBR_CC(I->getOpcode()) &&
+        I->getOpcode() != MAPIP::Br &&
+        I->getOpcode() != MAPIP::Bm)
+      break;
+    // Remove the branch.
+    I->eraseFromParent();
+    I = MBB.end();
+    ++Count;
+  }
 
+  return Count;
+}
+
+bool MAPIPInstrInfo::
+ReverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
+  assert(Cond.size() == 4 && "Invalid BR_CC condition!");
+
+  MAPIPCC::CondCodes CC = static_cast<MAPIPCC::CondCodes>(Cond[1].getImm());
+
+  switch (CC) {
+  default: llvm_unreachable("Invalid branch condition!");
+  case MAPIPCC::COND_B:
+    CC = MAPIPCC::COND_C;
+    break;
+  case MAPIPCC::COND_C:
+    CC = MAPIPCC::COND_B;
+    break;
+  case MAPIPCC::COND_E:
+    CC = MAPIPCC::COND_NE;
+    break;
+  case MAPIPCC::COND_NE:
+    CC = MAPIPCC::COND_E;
+    break;
+  case MAPIPCC::COND_G:
+    CC = MAPIPCC::COND_LE;
+    break;
+  case MAPIPCC::COND_A:
+    CC = MAPIPCC::COND_UE;
+    break;
+  case MAPIPCC::COND_L:
+    CC = MAPIPCC::COND_GE;
+    break;
+  case MAPIPCC::COND_U:
+    CC = MAPIPCC::COND_AE;
+    break;
+  case MAPIPCC::COND_GE:
+    CC = MAPIPCC::COND_L;
+    break;
+  case MAPIPCC::COND_AE:
+    CC = MAPIPCC::COND_U;
+    break;
+  case MAPIPCC::COND_LE:
+    CC = MAPIPCC::COND_G;
+    break;
+  case MAPIPCC::COND_UE:
+    CC = MAPIPCC::COND_A;
+    break;
+  }
+
+  Cond[1].setImm(CC);
+  return false;
+}
+
+bool MAPIPInstrInfo::isUnpredicatedTerminator(const MachineInstr *MI) const {
+  if (!MI->isTerminator()) return false;
+
+  // Conditional branch is a special case.
+  if (MI->isBranch() && !MI->isBarrier())
+    return true;
+  if (!MI->isPredicable())
+    return true;
+  return !isPredicated(MI);
+}
+
+static bool AcceptsAdditionalEqualityCheck(MAPIPCC::CondCodes simpleCC,
+                                           MAPIPCC::CondCodes *complexCC) {
+  *complexCC = simpleCC;
+  switch (simpleCC) {
+  default: llvm_unreachable("Invalid comparison code!");
+  case MAPIPCC::COND_GE:
+  case MAPIPCC::COND_LE:
+  case MAPIPCC::COND_AE:
+  case MAPIPCC::COND_UE:
+    llvm_unreachable("Not a simple CC, already contains an equality!");
+  case MAPIPCC::COND_B:
+  case MAPIPCC::COND_C:
+  case MAPIPCC::COND_E:
+  case MAPIPCC::COND_NE:
+    return false;
+  case MAPIPCC::COND_G:
+    *complexCC = MAPIPCC::COND_GE;
+    return true;
+  case MAPIPCC::COND_A:
+    *complexCC = MAPIPCC::COND_AE;
+    return true;
+  case MAPIPCC::COND_L:
+    *complexCC = MAPIPCC::COND_LE;
+    return true;
+  case MAPIPCC::COND_U:
+    *complexCC = MAPIPCC::COND_UE;
+    return true;
+  }
+}
+
+bool MAPIPInstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,
+                                    MachineBasicBlock *&TBB,
+                                    MachineBasicBlock *&FBB,
+                                    SmallVectorImpl<MachineOperand> &Cond,
+                                    bool AllowModify) const {
+  // Start from the bottom of the block and work up, examining the
+  // terminator instructions.
+  MachineBasicBlock::iterator I = MBB.end();
+  while (I != MBB.begin()) {
+    --I;
     if (I->isDebugValue())
       continue;
 
-    //When we see a non-terminator, we are done
+    // Working from the bottom, when we see a non-terminator
+    // instruction, we're done.
     if (!isUnpredicatedTerminator(I))
       break;
 
-    //Terminator is not a branch
+    // A terminator that isn't a branch can't easily be handled
+    // by this analysis.
     if (!I->isBranch())
       return true;
 
-    //Handle Unconditional branches
-    if (I->getOpcode() == MAPIP::BA) {
-      UnCondBrIter = I;
+    // Cannot handle indirect branches.
+    if (I->getOpcode() == MAPIP::Br ||
+        I->getOpcode() == MAPIP::Bm)
+      return true;
 
+    // Handle unconditional branches.
+    if (I->getOpcode() == MAPIP::JMP) {
       if (!AllowModify) {
         TBB = I->getOperand(0).getMBB();
         continue;
       }
 
+      // If the block has any instructions after a JMP, delete them.
       while (llvm::next(I) != MBB.end())
         llvm::next(I)->eraseFromParent();
-
       Cond.clear();
       FBB = 0;
 
+      // Delete the JMP if it's equivalent to a fall-through.
       if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
         TBB = 0;
         I->eraseFromParent();
         I = MBB.end();
-        UnCondBrIter = MBB.end();
         continue;
       }
 
+      // TBB is used to indicate the unconditinal destination.
       TBB = I->getOperand(0).getMBB();
       continue;
     }
 
-    unsigned Opcode = I->getOpcode();
-    if (Opcode != MAPIP::BCOND && Opcode != MAPIP::FBCOND)
-      return true; //Unknown Opcode
+    // Handle conditional branches.
+    assert(isBR_CC(I->getOpcode()) && "Invalid conditional branch");
+    MAPIPCC::CondCodes BranchCode =
+      static_cast<MAPIPCC::CondCodes>(I->getOperand(0).getImm());
+    if (BranchCode == MAPIPCC::COND_INVALID)
+      return true;  // Can't handle weird stuff.
 
-    SPCC::CondCodes BranchCode = (SPCC::CondCodes)I->getOperand(1).getImm();
+    MachineOperand LHS = I->getOperand(1);
+    MachineOperand RHS = I->getOperand(2);
 
+    // Working from the bottom, handle the first conditional branch.
     if (Cond.empty()) {
-      MachineBasicBlock *TargetBB = I->getOperand(0).getMBB();
-      if (AllowModify && UnCondBrIter != MBB.end() &&
-          MBB.isLayoutSuccessor(TargetBB)) {
-
-        //Transform the code
-        //
-        //    brCC L1
-        //    ba L2
-        // L1:
-        //    ..
-        // L2:
-        //
-        // into
-        //
-        //   brnCC L2
-        // L1:
-        //   ...
-        // L2:
-        //
-        BranchCode = GetOppositeBranchCondition(BranchCode);
-        MachineBasicBlock::iterator OldInst = I;
-        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(Opcode))
-          .addMBB(UnCondBrIter->getOperand(0).getMBB()).addImm(BranchCode);
-        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MAPIP::BA))
-          .addMBB(TargetBB);
-
-        OldInst->eraseFromParent();
-        UnCondBrIter->eraseFromParent();
-
-        UnCondBrIter = MBB.end();
-        I = MBB.end();
-        continue;
-      }
       FBB = TBB;
-      TBB = I->getOperand(0).getMBB();
+      TBB = I->getOperand(3).getMBB();
+      Cond.push_back(MachineOperand::CreateImm(I->getOpcode()));
       Cond.push_back(MachineOperand::CreateImm(BranchCode));
+      Cond.push_back(LHS);
+      Cond.push_back(RHS);
       continue;
     }
-    //FIXME: Handle subsequent conditional branches
-    //For now, we can't handle multiple conditional branches
-    return true;
+
+    assert(Cond.size() == 4);
+    assert(TBB);
+
+    // Is it a complex CC?
+    MAPIPCC::CondCodes complexCC;
+    if ((BranchCode == MAPIPCC::COND_E)
+        && AcceptsAdditionalEqualityCheck((MAPIPCC::CondCodes) Cond[1].getImm(), &complexCC)
+        && (TBB == I->getOperand(3).getMBB())
+        // This should actually check for equality but that's just too much code...
+        && (((Cond[2].getType() == LHS.getType()) && (Cond[3].getType() == RHS.getType()))
+          || ((Cond[2].getType() == RHS.getType()) && (Cond[3].getType() == LHS.getType())))) {
+
+      Cond[1] = MachineOperand::CreateImm(complexCC);
+    }
   }
+
   return false;
 }
 
+static bool IsComplexCC(MAPIPCC::CondCodes cc,
+                        MAPIPCC::CondCodes *simpleCC) {
+  *simpleCC = cc;
+  switch (cc) {
+  default: llvm_unreachable("Invalid condition code!");
+  case MAPIPCC::COND_B:
+  case MAPIPCC::COND_C:
+  case MAPIPCC::COND_E:
+  case MAPIPCC::COND_NE:
+  case MAPIPCC::COND_G:
+  case MAPIPCC::COND_L:
+  case MAPIPCC::COND_A:
+  case MAPIPCC::COND_U:
+    return false;
+  case MAPIPCC::COND_GE:
+    *simpleCC = MAPIPCC::COND_G;
+    return true;
+  case MAPIPCC::COND_LE:
+    *simpleCC = MAPIPCC::COND_L;
+    return true;
+  case MAPIPCC::COND_AE:
+    *simpleCC = MAPIPCC::COND_A;
+    return true;
+  case MAPIPCC::COND_UE:
+    *simpleCC = MAPIPCC::COND_U;
+    return true;
+  }
+}
+
 unsigned
-MapipInstrInfo::InsertBranch(MachineBasicBlock &MBB,MachineBasicBlock *TBB,
-                             MachineBasicBlock *FBB,
-                             const SmallVectorImpl<MachineOperand> &Cond,
-                             DebugLoc DL) const {
+MAPIPInstrInfo::InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
+                              MachineBasicBlock *FBB,
+                              const SmallVectorImpl<MachineOperand> &Cond,
+                              DebugLoc DL) const {
+  // Shouldn't be a fall through.
   assert(TBB && "InsertBranch must not be told to insert a fallthrough");
-  assert((Cond.size() == 1 || Cond.size() == 0) &&
-         "Mapip branch conditions should have one component!");
+  assert((Cond.size() == 4 || Cond.size() == 0) &&
+         "MAPIP branch conditions have four components!");
 
   if (Cond.empty()) {
+    // Unconditional branch?
     assert(!FBB && "Unconditional branch with multiple successors!");
-    BuildMI(&MBB, DL, get(MAPIP::BA)).addMBB(TBB);
+    BuildMI(&MBB, DL, get(MAPIP::JMP)).addMBB(TBB);
     return 1;
   }
 
-  //Conditional branch
-  unsigned CC = Cond[0].getImm();
-
-  if (IsIntegerCC(CC))
-    BuildMI(&MBB, DL, get(MAPIP::BCOND)).addMBB(TBB).addImm(CC);
-  else
-    BuildMI(&MBB, DL, get(MAPIP::FBCOND)).addMBB(TBB).addImm(CC);
-  if (!FBB)
-    return 1;
-
-  BuildMI(&MBB, DL, get(MAPIP::BA)).addMBB(FBB);
-  return 2;
-}
-
-unsigned MapipInstrInfo::RemoveBranch(MachineBasicBlock &MBB) const
-{
-  MachineBasicBlock::iterator I = MBB.end();
+  // Conditional branch.
   unsigned Count = 0;
-  while (I != MBB.begin()) {
-    --I;
+  unsigned Opcode = Cond[0].getImm();
+  MAPIPCC::CondCodes CC = (MAPIPCC::CondCodes) Cond[1].getImm();
+  MachineOperand LHS = Cond[2];
+  MachineOperand RHS = Cond[3];
 
-    if (I->isDebugValue())
-      continue;
+  // Is it a complex CC?
+  MAPIPCC::CondCodes simpleCC;
+  if (IsComplexCC(CC, &simpleCC)) {
+    BuildMI(&MBB, DL, get(Opcode))
+      .addImm(MAPIPCC::COND_E)
+      .addOperand(LHS).addOperand(RHS)
+      .addMBB(TBB);
+    CC = simpleCC;
+    ++Count;
+  }
+  BuildMI(&MBB, DL, get(Opcode))
+    .addImm(CC)
+    .addOperand(LHS).addOperand(RHS)
+    .addMBB(TBB);
+  ++Count;
 
-    if (I->getOpcode() != MAPIP::BA
-        && I->getOpcode() != MAPIP::BCOND
-        && I->getOpcode() != MAPIP::FBCOND)
-      break; // Not a branch
-
-    I->eraseFromParent();
-    I = MBB.end();
+  if (FBB) {
+    // Two-way Conditional branch. Insert the second branch.
+    BuildMI(&MBB, DL, get(MAPIP::JMP)).addMBB(FBB);
     ++Count;
   }
   return Count;
 }
 
-void MapipInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
-                                 MachineBasicBlock::iterator I, DebugLoc DL,
-                                 unsigned DestReg, unsigned SrcReg,
-                                 bool KillSrc) const {
-  if (MAPIP::IntRegsRegClass.contains(DestReg, SrcReg))
-    BuildMI(MBB, I, DL, get(MAPIP::ORrr), DestReg).addReg(MAPIP::G0)
-      .addReg(SrcReg, getKillRegState(KillSrc));
-  else if (MAPIP::FPRegsRegClass.contains(DestReg, SrcReg))
-    BuildMI(MBB, I, DL, get(MAPIP::FMOVS), DestReg)
-      .addReg(SrcReg, getKillRegState(KillSrc));
-  else if (MAPIP::DFPRegsRegClass.contains(DestReg, SrcReg))
-    BuildMI(MBB, I, DL, get(Subtarget.isV9() ? MAPIP::FMOVD : MAPIP::FpMOVD), DestReg)
-      .addReg(SrcReg, getKillRegState(KillSrc));
-  else
-    llvm_unreachable("Impossible reg-to-reg copy");
-}
+/// GetInstSize - Return the number of bytes of code the specified
+/// instruction may be.  This returns the maximum number of bytes.
+///
+unsigned MAPIPInstrInfo::GetInstSizeInBytes(const MachineInstr *MI) const {
+  const MCInstrDesc &Desc = MI->getDesc();
 
-void MapipInstrInfo::
-storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                    unsigned SrcReg, bool isKill, int FI,
-                    const TargetRegisterClass *RC,
-                    const TargetRegisterInfo *TRI) const {
-  DebugLoc DL;
-  if (I != MBB.end()) DL = I->getDebugLoc();
-
-  // On the order of operands here: think "[FrameIdx + 0] = SrcReg".
-  if (RC == &MAPIP::IntRegsRegClass)
-    BuildMI(MBB, I, DL, get(MAPIP::STri)).addFrameIndex(FI).addImm(0)
-      .addReg(SrcReg, getKillRegState(isKill));
-  else if (RC == &MAPIP::FPRegsRegClass)
-    BuildMI(MBB, I, DL, get(MAPIP::STFri)).addFrameIndex(FI).addImm(0)
-      .addReg(SrcReg,  getKillRegState(isKill));
-  else if (RC == &MAPIP::DFPRegsRegClass)
-    BuildMI(MBB, I, DL, get(MAPIP::STDFri)).addFrameIndex(FI).addImm(0)
-      .addReg(SrcReg,  getKillRegState(isKill));
-  else
-    llvm_unreachable("Can't store this register to stack slot");
-}
-
-void MapipInstrInfo::
-loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                     unsigned DestReg, int FI,
-                     const TargetRegisterClass *RC,
-                     const TargetRegisterInfo *TRI) const {
-  DebugLoc DL;
-  if (I != MBB.end()) DL = I->getDebugLoc();
-
-  if (RC == &MAPIP::IntRegsRegClass)
-    BuildMI(MBB, I, DL, get(MAPIP::LDri), DestReg).addFrameIndex(FI).addImm(0);
-  else if (RC == &MAPIP::FPRegsRegClass)
-    BuildMI(MBB, I, DL, get(MAPIP::LDFri), DestReg).addFrameIndex(FI).addImm(0);
-  else if (RC == &MAPIP::DFPRegsRegClass)
-    BuildMI(MBB, I, DL, get(MAPIP::LDDFri), DestReg).addFrameIndex(FI).addImm(0);
-  else
-    llvm_unreachable("Can't load this register from stack slot");
-}
-
-unsigned MapipInstrInfo::getGlobalBaseReg(MachineFunction *MF) const
-{
-  MapipMachineFunctionInfo *MapipFI = MF->getInfo<MapipMachineFunctionInfo>();
-  unsigned GlobalBaseReg = MapipFI->getGlobalBaseReg();
-  if (GlobalBaseReg != 0)
-    return GlobalBaseReg;
-
-  // Insert the set of GlobalBaseReg into the first MBB of the function
-  MachineBasicBlock &FirstMBB = MF->front();
-  MachineBasicBlock::iterator MBBI = FirstMBB.begin();
-  MachineRegisterInfo &RegInfo = MF->getRegInfo();
-
-  GlobalBaseReg = RegInfo.createVirtualRegister(&MAPIP::IntRegsRegClass);
-
-
-  DebugLoc dl;
-
-  BuildMI(FirstMBB, MBBI, dl, get(MAPIP::GETPCX), GlobalBaseReg);
-  MapipFI->setGlobalBaseReg(GlobalBaseReg);
-  return GlobalBaseReg;
+  switch (Desc.TSFlags & MAPIPII::SizeMask) {
+  default:
+    switch (Desc.getOpcode()) {
+    default: llvm_unreachable("Unknown instruction size!");
+    case TargetOpcode::PROLOG_LABEL:
+    case TargetOpcode::EH_LABEL:
+    case TargetOpcode::IMPLICIT_DEF:
+    case TargetOpcode::KILL:
+    case TargetOpcode::DBG_VALUE:
+      return 0;
+    case TargetOpcode::INLINEASM: {
+      const MachineFunction *MF = MI->getParent()->getParent();
+      const TargetInstrInfo &TII = *MF->getTarget().getInstrInfo();
+      return TII.getInlineAsmLength(MI->getOperand(0).getSymbolName(),
+                                    *MF->getTarget().getMCAsmInfo());
+    }
+    }
+  case MAPIPII::Size2Bytes:
+    return 2;
+  case MAPIPII::Size4Bytes:
+    return 4;
+  case MAPIPII::Size6Bytes:
+    return 6;
+  }
 }

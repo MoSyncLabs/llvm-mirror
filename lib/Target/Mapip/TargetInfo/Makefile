@@ -1,4 +1,4 @@
-##===- lib/Target/Mapip/TargetInfo/Makefile ----------------*- Makefile -*-===##
+##===- lib/Target/MAPIP/TargetInfo/Makefile ---------------*- Makefile -*-===##
 #
 #                     The LLVM Compiler Infrastructure
 #

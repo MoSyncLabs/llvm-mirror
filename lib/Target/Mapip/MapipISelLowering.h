@@ -1,4 +1,4 @@
-//===-- MapipISelLowering.h - Mapip DAG Lowering Interface ------*- C++ -*-===//
+//===-- MAPIPISelLowering.h - MAPIP DAG Lowering Interface ----*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,74 +7,118 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the interfaces that Mapip uses to lower LLVM code into a
+// This file defines the interfaces that MAPIP uses to lower LLVM code into a
 // selection DAG.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MAPIP_ISELLOWERING_H
-#define MAPIP_ISELLOWERING_H
+#ifndef LLVM_TARGET_MAPIP_ISELLOWERING_H
+#define LLVM_TARGET_MAPIP_ISELLOWERING_H
 
 #include "Mapip.h"
+#include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/Target/TargetLowering.h"
 
 namespace llvm {
   namespace MAPIPISD {
     enum {
       FIRST_NUMBER = ISD::BUILTIN_OP_END,
-      CMPICC,      // Compare two GPR operands, set icc.
-      CMPFCC,      // Compare two FP operands, set fcc.
-      BRICC,       // Branch to dest on icc condition
-      BRFCC,       // Branch to dest on fcc condition
-      SELECT_ICC,  // Select between two values using the current ICC flags.
-      SELECT_FCC,  // Select between two values using the current FCC flags.
 
-      Hi, Lo,      // Hi/Lo operations, typically on a global address.
+      /// Return with a flag operand. Operand 0 is the chain operand.
+      RET_FLAG,
 
-      FTOI,        // FP to Int within a FP register.
-      ITOF,        // Int to FP within a FP register.
+      /// Same as RET_FLAG, but used for returning from ISRs.
+      RETI_FLAG,
 
-      CALL,        // A call instruction.
-      RET_FLAG,    // Return with a flag operand.
-      GLOBAL_BASE_REG, // Global base reg for PIC
-      FLUSHW       // FLUSH register windows to stack
+      /// CALL - These operations represent an abstract call
+      /// instruction, which includes a bunch of information.
+      CALL,
+
+      /// Wrapper - A wrapper node for TargetConstantPool, TargetExternalSymbol,
+      /// and TargetGlobalAddress.
+      Wrapper,
+
+      /// MAPIP conditional branches. Operand 0 is the chain operand, operand 1
+      /// is the condition code, operand 2 is the LHS, operand 3 is the RHS
+      /// and operand 4 is the block to branch if condition is true.
+      BR_CC,
+
+      /// SELECT_CC - Operand 0 is the condition code, operand 1 is the LHS,
+      /// operand 2 is the RHS, operand 3 is the value if the condition is true
+      /// and operand 4 is the value when the condition is false.
+      SELECT_CC,
+
+      /// Special multiplication operators that produce overflow and a chain.
+      /// Operand 0 is the chain, Operands 1 and 2 are the LHS and RHS.
+      SMUL, UMUL
     };
   }
 
-  class MapipTargetLowering : public TargetLowering {
+  class MAPIPSubtarget;
+  class MAPIPTargetMachine;
+
+  class MAPIPTargetLowering : public TargetLowering {
   public:
-    MapipTargetLowering(TargetMachine &TM);
+    explicit MAPIPTargetLowering(MAPIPTargetMachine &TM);
+
+    virtual MVT getShiftAmountTy(EVT LHSTy) const { return MVT::i16; }
+
+    /// LowerOperation - Provide custom lowering hooks for some operations.
     virtual SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const;
 
-    /// computeMaskedBitsForTargetNode - Determine which of the bits specified
-    /// in Mask are known to be either zero or one and return them in the
-    /// KnownZero/KnownOne bitsets.
-    virtual void computeMaskedBitsForTargetNode(const SDValue Op,
-                                                APInt &KnownZero,
-                                                APInt &KnownOne,
-                                                const SelectionDAG &DAG,
-                                                unsigned Depth = 0) const;
-
-    virtual MachineBasicBlock *
-      EmitInstrWithCustomInserter(MachineInstr *MI,
-                                  MachineBasicBlock *MBB) const;
-
+    /// getTargetNodeName - This method returns the name of a target specific
+    /// DAG node.
     virtual const char *getTargetNodeName(unsigned Opcode) const;
 
-    ConstraintType getConstraintType(const std::string &Constraint) const;
+    SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerSIGN_EXTEND(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerROT(SDValue Op, SelectionDAG &DAG, bool IsLeft) const;
+    SDValue LowerMUL_LOHI(SDValue Op, SelectionDAG &DAG, bool Signed) const;
+    SDValue LowerJumpTable(SDValue Op, SelectionDAG &DAG) const;
+    SDValue getReturnAddressFrameIndex(SelectionDAG &DAG) const;
+
+    TargetLowering::ConstraintType
+    getConstraintType(const std::string &Constraint) const;
     std::pair<unsigned, const TargetRegisterClass*>
     getRegForInlineAsmConstraint(const std::string &Constraint, EVT VT) const;
 
-    virtual bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const;
-
-    virtual SDValue
-      LowerFormalArguments(SDValue Chain,
-                           CallingConv::ID CallConv,
-                           bool isVarArg,
+  private:
+    SDValue LowerCCCCallTo(SDValue Chain, SDValue Callee,
+                           CallingConv::ID CallConv, bool isVarArg,
+                           bool isTailCall,
+                           const SmallVectorImpl<ISD::OutputArg> &Outs,
+                           const SmallVectorImpl<SDValue> &OutVals,
                            const SmallVectorImpl<ISD::InputArg> &Ins,
                            DebugLoc dl, SelectionDAG &DAG,
                            SmallVectorImpl<SDValue> &InVals) const;
 
+    SDValue LowerCCCArguments(SDValue Chain,
+                              CallingConv::ID CallConv,
+                              bool isVarArg,
+                              const SmallVectorImpl<ISD::InputArg> &Ins,
+                              DebugLoc dl,
+                              SelectionDAG &DAG,
+                              SmallVectorImpl<SDValue> &InVals) const;
+
+    SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
+                            CallingConv::ID CallConv, bool isVarArg,
+                            const SmallVectorImpl<ISD::InputArg> &Ins,
+                            DebugLoc dl, SelectionDAG &DAG,
+                            SmallVectorImpl<SDValue> &InVals) const;
+
+    virtual SDValue
+      LowerFormalArguments(SDValue Chain,
+                           CallingConv::ID CallConv, bool isVarArg,
+                           const SmallVectorImpl<ISD::InputArg> &Ins,
+                           DebugLoc dl, SelectionDAG &DAG,
+                           SmallVectorImpl<SDValue> &InVals) const;
     virtual SDValue
       LowerCall(SDValue Chain, SDValue Callee, CallingConv::ID CallConv,
                 bool isVarArg, bool doesNotRet, bool &isTailCall,
@@ -91,11 +135,10 @@ namespace llvm {
                   const SmallVectorImpl<SDValue> &OutVals,
                   DebugLoc dl, SelectionDAG &DAG) const;
 
-    SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
-
-    unsigned getSRetArgSize(SelectionDAG &DAG, SDValue Callee) const;
+    const MAPIPSubtarget &Subtarget;
+    const MAPIPTargetMachine &TM;
+    const TargetData *TD;
   };
-} // end namespace llvm
+} // namespace llvm
 
-#endif    // MAPIP_ISELLOWERING_H
+#endif // LLVM_TARGET_MAPIP_ISELLOWERING_H

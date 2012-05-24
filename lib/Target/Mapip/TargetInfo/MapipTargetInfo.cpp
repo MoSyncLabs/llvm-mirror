@@ -1,4 +1,4 @@
-//===-- MapipTargetInfo.cpp - Mapip Target Implementation -----------------===//
+//===-- MAPIPTargetInfo.cpp - MAPIP Target Implementation ---------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -12,10 +12,9 @@
 #include "llvm/Support/TargetRegistry.h"
 using namespace llvm;
 
-Target llvm::TheMapipTarget;
-//Target llvm::TheMapipV9Target;
+Target llvm::TheMAPIPTarget;
 
 extern "C" void LLVMInitializeMapipTargetInfo() { 
-  RegisterTarget<Triple::mapip> X(TheMapipTarget, "mapip", "Mapip");
-  //RegisterTarget<Triple::mapipv9> Y(TheMapipV9Target, "mapipv9", "Mapip V9");
+  RegisterTarget<Triple::mapip> 
+    X(TheMAPIPTarget, "mapip", "MAPIP [experimental]");
 }

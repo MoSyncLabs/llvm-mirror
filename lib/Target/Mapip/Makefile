@@ -1,10 +1,10 @@
-##===- lib/Target/Mapip/Makefile ---------------------------*- Makefile -*-===##
-#
+##===- lib/Target/MAPIP/Makefile --------------------------*- Makefile -*-===##
+# 
 #                     The LLVM Compiler Infrastructure
 #
-# This file is distributed under the University of Illinois Open Source
+# This file is distributed under the University of Illinois Open Source 
 # License. See LICENSE.TXT for details.
-#
+# 
 ##===----------------------------------------------------------------------===##
 
 LEVEL = ../../..
@@ -13,10 +13,11 @@ TARGET = Mapip
 
 # Make sure that tblgen is run, first thing.
 BUILT_SOURCES = MapipGenRegisterInfo.inc MapipGenInstrInfo.inc \
-		MapipGenAsmWriter.inc MapipGenDAGISel.inc \
-		MapipGenSubtargetInfo.inc MapipGenCallingConv.inc
+		MapipGenAsmWriter.inc \
+		MapipGenDAGISel.inc MapipGenCallingConv.inc \
+		MapipGenSubtargetInfo.inc
 
-DIRS = TargetInfo MCTargetDesc
+DIRS = InstPrinter TargetInfo MCTargetDesc
 
 include $(LEVEL)/Makefile.common
 

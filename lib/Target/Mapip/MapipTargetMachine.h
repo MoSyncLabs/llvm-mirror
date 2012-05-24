@@ -1,4 +1,4 @@
-//===-- MapipTargetMachine.h - Define TargetMachine for Mapip ---*- C++ -*-===//
+//===-- MAPIPTargetMachine.h - Define TargetMachine for MAPIP -*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,81 +7,64 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file declares the Mapip specific subclass of TargetMachine.
+// This file declares the MAPIP specific subclass of TargetMachine.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MAPIPTARGETMACHINE_H
-#define MAPIPTARGETMACHINE_H
+
+#ifndef LLVM_TARGET_MAPIP_TARGETMACHINE_H
+#define LLVM_TARGET_MAPIP_TARGETMACHINE_H
 
 #include "MapipInstrInfo.h"
 #include "MapipISelLowering.h"
 #include "MapipFrameLowering.h"
 #include "MapipSelectionDAGInfo.h"
+#include "MapipRegisterInfo.h"
 #include "MapipSubtarget.h"
-#include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Target/TargetFrameLowering.h"
+#include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
 
-class MapipTargetMachine : public LLVMTargetMachine {
-  MapipSubtarget Subtarget;
-  const TargetData DataLayout;       // Calculates type size & alignment
-  MapipInstrInfo InstrInfo;
-  MapipTargetLowering TLInfo;
-  MapipSelectionDAGInfo TSInfo;
-  MapipFrameLowering FrameLowering;
-public:
-  MapipTargetMachine(const Target &T, StringRef TT,
-                     StringRef CPU, StringRef FS, const TargetOptions &Options,
-                     Reloc::Model RM, CodeModel::Model CM,
-                     CodeGenOpt::Level OL, bool is64bit);
+/// MAPIPTargetMachine
+///
+class MAPIPTargetMachine : public LLVMTargetMachine {
+  MAPIPSubtarget        Subtarget;
+  const TargetData       DataLayout;       // Calculates type size & alignment
+  MAPIPInstrInfo        InstrInfo;
+  MAPIPTargetLowering   TLInfo;
+  MAPIPSelectionDAGInfo TSInfo;
+  MAPIPFrameLowering    FrameLowering;
 
-  virtual const MapipInstrInfo *getInstrInfo() const { return &InstrInfo; }
-  virtual const TargetFrameLowering  *getFrameLowering() const {
+public:
+  MAPIPTargetMachine(const Target &T, StringRef TT,
+                      StringRef CPU, StringRef FS, const TargetOptions &Options,
+                      Reloc::Model RM, CodeModel::Model CM,
+                      CodeGenOpt::Level OL);
+
+  virtual const TargetFrameLowering *getFrameLowering() const {
     return &FrameLowering;
   }
-  virtual const MapipSubtarget   *getSubtargetImpl() const{ return &Subtarget; }
-  virtual const MapipRegisterInfo *getRegisterInfo() const {
+  virtual const MAPIPInstrInfo *getInstrInfo() const  { return &InstrInfo; }
+  virtual const TargetData *getTargetData() const     { return &DataLayout;}
+  virtual const MAPIPSubtarget *getSubtargetImpl() const { return &Subtarget; }
+
+  virtual const TargetRegisterInfo *getRegisterInfo() const {
     return &InstrInfo.getRegisterInfo();
   }
-  virtual const MapipTargetLowering* getTargetLowering() const {
+
+  virtual const MAPIPTargetLowering *getTargetLowering() const {
     return &TLInfo;
   }
-  virtual const MapipSelectionDAGInfo* getSelectionDAGInfo() const {
+
+  virtual const MAPIPSelectionDAGInfo* getSelectionDAGInfo() const {
     return &TSInfo;
   }
-  virtual const TargetData       *getTargetData() const { return &DataLayout; }
 
-  // Pass Pipeline Configuration
   virtual TargetPassConfig *createPassConfig(PassManagerBase &PM);
-};
-
-/// MapipV8TargetMachine - Mapip 32-bit target machine
-///
-class MapipV8TargetMachine : public MapipTargetMachine {
-  virtual void anchor();
-public:
-  MapipV8TargetMachine(const Target &T, StringRef TT,
-                       StringRef CPU, StringRef FS,
-                       const TargetOptions &Options,
-                       Reloc::Model RM, CodeModel::Model CM,
-                       CodeGenOpt::Level OL);
-};
-
-/// MapipV9TargetMachine - Mapip 64-bit target machine
-///
-class MapipV9TargetMachine : public MapipTargetMachine {
-  virtual void anchor();
-public:
-  MapipV9TargetMachine(const Target &T, StringRef TT,
-                       StringRef CPU, StringRef FS,
-                       const TargetOptions &Options,
-                       Reloc::Model RM, CodeModel::Model CM,
-                       CodeGenOpt::Level OL);
-};
+}; // MAPIPTargetMachine.
 
 } // end namespace llvm
 
-#endif
+#endif // LLVM_TARGET_MAPIP_TARGETMACHINE_H

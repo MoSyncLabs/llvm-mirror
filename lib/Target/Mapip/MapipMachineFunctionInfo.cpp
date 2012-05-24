@@ -1,4 +1,4 @@
-//===-- MapipMachineFunctionInfo.cpp - Mapip Machine Function Info --------===//
+//===-- MAPIPMachineFuctionInfo.cpp - MAPIP machine function info -------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -11,4 +11,4 @@
 
 using namespace llvm;
 
-void MapipMachineFunctionInfo::anchor() { }
+void MAPIPMachineFunctionInfo::anchor() { }

@@ -1,4 +1,4 @@
-//===-- MapipTargetMachine.cpp - Define TargetMachine for Mapip -----------===//
+//===-- MAPIPTargetMachine.cpp - Define TargetMachine for MAPIP ---------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,92 +7,61 @@
 //
 //===----------------------------------------------------------------------===//
 //
+// Top-level implementation for the MAPIP target.
 //
 //===----------------------------------------------------------------------===//
 
 #include "MapipTargetMachine.h"
 #include "Mapip.h"
+#include "MCTargetDesc/MAPIPMCAsmInfo.h"
 #include "llvm/PassManager.h"
 #include "llvm/CodeGen/Passes.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/Support/TargetRegistry.h"
 using namespace llvm;
 
 extern "C" void LLVMInitializeMapipTarget() {
   // Register the target.
-  RegisterTargetMachine<MapipV8TargetMachine> X(TheMapipTarget);
-  //RegisterTargetMachine<MapipV9TargetMachine> Y(TheMapipV9Target);
+  RegisterTargetMachine<MAPIPTargetMachine> X(TheMAPIPTarget);
 }
 
-/// MapipTargetMachine ctor - Create an ILP32 architecture model
-///
-MapipTargetMachine::MapipTargetMachine(const Target &T, StringRef TT,
-                                       StringRef CPU, StringRef FS,
-                                       const TargetOptions &Options,
-                                       Reloc::Model RM, CodeModel::Model CM,
-                                       CodeGenOpt::Level OL,
-                                       bool is64bit)
+MAPIPTargetMachine::MAPIPTargetMachine(const Target &T,
+                                         StringRef TT,
+                                         StringRef CPU,
+                                         StringRef FS,
+                                         const TargetOptions &Options,
+                                         Reloc::Model RM, CodeModel::Model CM,
+                                         CodeGenOpt::Level OL)
   : LLVMTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL),
-    Subtarget(TT, CPU, FS, is64bit),
-    DataLayout(Subtarget.getDataLayout()),
-    InstrInfo(Subtarget),
-    TLInfo(*this), TSInfo(*this),
-    FrameLowering(Subtarget) {
-}
+    Subtarget(TT, CPU, FS),
+    // FIXME: Check TargetData string.
+    DataLayout("e-p:32:32:32-i8:32:32-i16:32:32-i32:32:32-s0:32:32-n32"/*, 16*/),
+    InstrInfo(*this), TLInfo(*this), TSInfo(*this),
+    FrameLowering(Subtarget) { }
 
 namespace {
-/// Mapip Code Generator Pass Configuration Options.
-class MapipPassConfig : public TargetPassConfig {
+/// MAPIP Code Generator Pass Configuration Options.
+class MAPIPPassConfig : public TargetPassConfig {
 public:
-  MapipPassConfig(MapipTargetMachine *TM, PassManagerBase &PM)
+  MAPIPPassConfig(MAPIPTargetMachine *TM, PassManagerBase &PM)
     : TargetPassConfig(TM, PM) {}
 
-  MapipTargetMachine &getMapipTargetMachine() const {
-    return getTM<MapipTargetMachine>();
+  MAPIPTargetMachine &getMAPIPTargetMachine() const {
+    return getTM<MAPIPTargetMachine>();
   }
 
   virtual bool addInstSelector();
-  virtual bool addPreEmitPass();
 };
 } // namespace
 
-TargetPassConfig *MapipTargetMachine::createPassConfig(PassManagerBase &PM) {
-  return new MapipPassConfig(this, PM);
+TargetPassConfig *MAPIPTargetMachine::createPassConfig(PassManagerBase &PM) {
+  return new MAPIPPassConfig(this, PM);
 }
 
-bool MapipPassConfig::addInstSelector() {
-  PM->add(createMapipISelDag(getMapipTargetMachine()));
+bool MAPIPPassConfig::addInstSelector() {
+  // Install an instruction selector.
+  PM->add(createMAPIPISelDag(getMAPIPTargetMachine(), getOptLevel()));
+  // Peephole optimisations
+  //PM->add(createMAPIPPeephole());
   return false;
-}
-
-/// addPreEmitPass - This pass may be implemented by targets that want to run
-/// passes immediately before machine code is emitted.  This should return
-/// true if -print-machineinstrs should print out the code after the passes.
-bool MapipPassConfig::addPreEmitPass(){
-  //PM->add(createMapipFPMoverPass(getMapipTargetMachine()));
-  //PM->add(createMapipDelaySlotFillerPass(getMapipTargetMachine()));
-  return true;
-}
-
-void MapipV8TargetMachine::anchor() { }
-
-MapipV8TargetMachine::MapipV8TargetMachine(const Target &T,
-                                           StringRef TT, StringRef CPU,
-                                           StringRef FS,
-                                           const TargetOptions &Options,
-                                           Reloc::Model RM,
-                                           CodeModel::Model CM,
-                                           CodeGenOpt::Level OL)
-  : MapipTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL, false) {
-}
-
-void MapipV9TargetMachine::anchor() { }
-
-MapipV9TargetMachine::MapipV9TargetMachine(const Target &T,
-                                           StringRef TT,  StringRef CPU,
-                                           StringRef FS,
-                                           const TargetOptions &Options,
-                                           Reloc::Model RM,
-                                           CodeModel::Model CM,
-                                           CodeGenOpt::Level OL)
-  : MapipTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL, true) {
 }

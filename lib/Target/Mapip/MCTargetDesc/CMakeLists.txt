@@ -1,6 +1,6 @@
-add_llvm_library(LLVMMapipDesc
-  MapipMCTargetDesc.cpp
-  MapipMCAsmInfo.cpp
+add_llvm_library(LLVMMAPIPDesc
+  MAPIPMCTargetDesc.cpp
+  MAPIPMCAsmInfo.cpp
   )
 
-add_dependencies(LLVMMapipDesc MapipCommonTableGen)
+add_dependencies(LLVMMAPIPDesc MAPIPCommonTableGen)

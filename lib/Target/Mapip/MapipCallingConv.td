@@ -1,4 +1,4 @@
-//===-- MapipCallingConv.td - Calling Conventions Mapip ----*- tablegen -*-===//
+//==- MAPIPCallingConv.td - Calling Conventions for MAPIP -*- tablegen -*-==//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -6,31 +6,36 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-//
-// This describes the calling conventions for the Mapip architectures.
-//
+// This describes the calling conventions for MAPIP architecture.
 //===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
-// Return Value Calling Conventions
+// MAPIP Return Value Calling Convention
 //===----------------------------------------------------------------------===//
+def RetCC_MAPIP : CallingConv<[
+  // Promote i8 return values to i16.
+  CCIfType<[i8], CCPromoteToType<i32>>,
+  CCIfType<[i16], CCPromoteToType<i32>>,
 
-// Mapip 32-bit C return-value convention.
-def RetCC_Mapip32 : CallingConv<[
-  CCIfType<[i32], CCAssignToReg<[I0, I1, I2, I3, I4, I5]>>,
-  CCIfType<[f32], CCAssignToReg<[F0, F1, F2, F3]>>,
-  CCIfType<[f64], CCAssignToReg<[D0, D1]>>
+  // i16 are returned in registers A, B, C
+  CCIfType<[i32], CCAssignToReg<[A, B, C]>>
 ]>;
 
-// Mapip 32-bit C Calling convention.
-def CC_Mapip32 : CallingConv<[
-  //Custom assign SRet to [sp+64].
-  CCIfSRet<CCCustom<"CC_Mapip_Assign_SRet">>,
-  // i32 f32 arguments get passed in integer registers if there is space.
-  CCIfType<[i32, f32], CCAssignToReg<[I0, I1, I2, I3, I4, I5]>>,
-  // f64 arguments are split and passed through registers or through stack.
-  CCIfType<[f64], CCCustom<"CC_Mapip_Assign_f64">>,
+//===----------------------------------------------------------------------===//
+// MAPIP Argument Calling Conventions
+//===----------------------------------------------------------------------===//
+def CC_MAPIP : CallingConv<[
+  // Promote i8 arguments to i16.
+  CCIfType<[i8], CCPromoteToType<i32>>,
+  CCIfType<[i16], CCPromoteToType<i32>>,
 
-  // Alternatively, they are assigned to the stack in 4-byte aligned units.
-  CCAssignToStack<4, 4>
+  // The first 3 integer arguments of non-varargs functions are passed in
+  // integer registers.
+  CCIfNotVarArg<CCIfType<[i32], CCAssignToReg<[A, B, C]>>>,
+
+  // Integer values get stored in stack slots that are 1 (16 bit) byte in
+  // size and 1-byte aligned.
+  CCIfType<[i32], CCAssignToStack<1, 1>>
 ]>;
+
+def CSR_MAPIP : CalleeSavedRegs<(add X, Y, Z, I, J)>;

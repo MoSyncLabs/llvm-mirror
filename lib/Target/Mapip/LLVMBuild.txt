@@ -1,4 +1,4 @@
-;===- ./lib/Target/Mapip/LLVMBuild.txt -------------------------*- Conf -*--===;
+;===- ./lib/Target/MAPIP/LLVMBuild.txt ------------------------*- Conf -*--===;
 ;
 ;                     The LLVM Compiler Infrastructure
 ;
@@ -16,7 +16,7 @@
 ;===------------------------------------------------------------------------===;
 
 [common]
-subdirectories = MCTargetDesc TargetInfo
+subdirectories = InstPrinter MCTargetDesc TargetInfo
 
 [component_0]
 type = TargetGroup
@@ -28,5 +28,5 @@ has_asmprinter = 1
 type = Library
 name = MapipCodeGen
 parent = Mapip
-required_libraries = AsmPrinter CodeGen Core MC SelectionDAG MapipDesc MapipInfo Support Target
+required_libraries = AsmPrinter CodeGen Core MC MapipAsmPrinter MapipDesc MapipInfo SelectionDAG Support Target
 add_to_library_groups = Mapip

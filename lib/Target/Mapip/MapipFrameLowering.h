@@ -1,4 +1,4 @@
-//===-- MapipFrameLowering.h - Define frame lowering for Mapip --*- C++ -*-===//
+//==- MAPIPFrameLowering.h - Define frame lowering for MAPIP --*- C++ -*--==//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -19,13 +19,15 @@
 #include "llvm/Target/TargetFrameLowering.h"
 
 namespace llvm {
-  class MapipSubtarget;
+  class MAPIPSubtarget;
 
-class MapipFrameLowering : public TargetFrameLowering {
-  const MapipSubtarget &STI;
+class MAPIPFrameLowering : public TargetFrameLowering {
+protected:
+  const MAPIPSubtarget &STI;
+
 public:
-  explicit MapipFrameLowering(const MapipSubtarget &sti)
-    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 8, 0), STI(sti) {
+  explicit MAPIPFrameLowering(const MAPIPSubtarget &sti)
+    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 1, -1), STI(sti) {
   }
 
   /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
@@ -33,7 +35,19 @@ public:
   void emitPrologue(MachineFunction &MF) const;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const;
 
-  bool hasFP(const MachineFunction &MF) const { return false; }
+  bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
+                                 MachineBasicBlock::iterator MI,
+                                 const std::vector<CalleeSavedInfo> &CSI,
+                                 const TargetRegisterInfo *TRI) const;
+  bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
+                                   MachineBasicBlock::iterator MI,
+                                   const std::vector<CalleeSavedInfo> &CSI,
+                                   const TargetRegisterInfo *TRI) const;
+
+  bool hasFP(const MachineFunction &MF) const;
+  bool hasReservedCallFrame(const MachineFunction &MF) const;
+
+  void processFunctionBeforeFrameFinalized(MachineFunction &MF) const;
 };
 
 } // End llvm namespace

@@ -1,4 +1,4 @@
-//===-- MapipFrameLowering.cpp - Mapip Frame Information ------------------===//
+//===-- MAPIPFrameLowering.cpp - MAPIP Frame Information ----------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the Mapip implementation of TargetFrameLowering class.
+// This file contains the MAPIP implementation of TargetFrameLowering class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,55 +26,199 @@
 
 using namespace llvm;
 
-void MapipFrameLowering::emitPrologue(MachineFunction &MF) const {
-  MachineBasicBlock &MBB = MF.front();
+bool MAPIPFrameLowering::hasFP(const MachineFunction &MF) const {
+  const MachineFrameInfo *MFI = MF.getFrameInfo();
+
+  return (MF.getTarget().Options.DisableFramePointerElim(MF) ||
+          MF.getFrameInfo()->hasVarSizedObjects() ||
+          MFI->isFrameAddressTaken());
+}
+
+bool MAPIPFrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
+  return !MF.getFrameInfo()->hasVarSizedObjects();
+}
+
+void MAPIPFrameLowering::emitPrologue(MachineFunction &MF) const {
+  MachineBasicBlock &MBB = MF.front();   // Prolog goes in entry BB
   MachineFrameInfo *MFI = MF.getFrameInfo();
-  const MapipInstrInfo &TII =
-    *static_cast<const MapipInstrInfo*>(MF.getTarget().getInstrInfo());
+  MAPIPMachineFunctionInfo *MAPIPFI = MF.getInfo<MAPIPMachineFunctionInfo>();
+  const MAPIPInstrInfo &TII =
+    *static_cast<const MAPIPInstrInfo*>(MF.getTarget().getInstrInfo());
+
   MachineBasicBlock::iterator MBBI = MBB.begin();
-  DebugLoc dl = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
+  DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
 
-  // Get the number of bytes to allocate from the FrameInfo
-  int NumBytes = (int) MFI->getStackSize();
+  // Get the number of bytes to allocate from the FrameInfo.
+  uint64_t StackSize = MFI->getStackSize();
 
-  // Emit the correct save instruction based on the number of bytes in
-  // the frame. Minimum stack frame size according to V8 ABI is:
-  //   16 words for register window spill
-  //    1 word for address of returned aggregate-value
-  // +  6 words for passing parameters on the stack
-  // ----------
-  //   23 words * 4 bytes per word = 92 bytes
-  NumBytes += 92;
+  uint64_t NumBytes = StackSize - MAPIPFI->getCalleeSavedFrameSize();
+  if (hasFP(MF)) {
+    // Get the offset of the stack slot for the EBP register... which is
+    // guaranteed to be the last slot by processFunctionBeforeFrameFinalized.
+    // Update the frame offset adjustment.
+    MFI->setOffsetAdjustment(-NumBytes);
 
-  // Round up to next doubleword boundary -- a double-word boundary
-  // is required by the ABI.
-  NumBytes = (NumBytes + 7) & ~7;
-  NumBytes = -NumBytes;
+    // Save J into the appropriate stack slot...
+    BuildMI(MBB, MBBI, DL, TII.get(MAPIP::PUSH16r))
+      .addReg(MAPIP::J, RegState::Kill);
 
-  if (NumBytes >= -4096) {
-    BuildMI(MBB, MBBI, dl, TII.get(MAPIP::SAVEri), MAPIP::O6)
-      .addReg(MAPIP::O6).addImm(NumBytes);
-  } else {
-    // Emit this the hard way.  This clobbers G1 which we always know is
-    // available here.
-    unsigned OffHi = (unsigned)NumBytes >> 10U;
-    BuildMI(MBB, MBBI, dl, TII.get(MAPIP::SETHIi), MAPIP::G1).addImm(OffHi);
-    // Emit G1 = G1 + I6
-    BuildMI(MBB, MBBI, dl, TII.get(MAPIP::ORri), MAPIP::G1)
-      .addReg(MAPIP::G1).addImm(NumBytes & ((1 << 10)-1));
-    BuildMI(MBB, MBBI, dl, TII.get(MAPIP::SAVErr), MAPIP::O6)
-      .addReg(MAPIP::O6).addReg(MAPIP::G1);
+    // Update J with the new base value...
+    BuildMI(MBB, MBBI, DL, TII.get(MAPIP::MOV16rr), MAPIP::J)
+      .addReg(MAPIP::SP);
+
+    // Mark the FramePtr as live-in in every block except the entry.
+    for (MachineFunction::iterator I = llvm::next(MF.begin()), E = MF.end();
+         I != E; ++I)
+      I->addLiveIn(MAPIP::J);
+  }
+
+  // Skip the callee-saved push instructions.
+  while (MBBI != MBB.end() && (MBBI->getOpcode() == MAPIP::PUSH16r))
+    ++MBBI;
+
+  if (MBBI != MBB.end())
+    DL = MBBI->getDebugLoc();
+
+  if (NumBytes) { // adjust stack pointer: SP -= numbytes
+    // If there is an SUB16ri of SP immediately before this instruction, merge
+    // the two.
+    //NumBytes -= mergeSPUpdates(MBB, MBBI, true);
+    // If there is an ADD16ri or SUB16ri of SP immediately after this
+    // instruction, merge the two instructions.
+    // mergeSPUpdatesDown(MBB, MBBI, &NumBytes);
+
+    if (NumBytes) {
+      MachineInstr *MI =
+        BuildMI(MBB, MBBI, DL, TII.get(MAPIP::SUB16ri), MAPIP::SP)
+        .addReg(MAPIP::SP).addImm(NumBytes);
+      // The SRW implicit def is dead.
+      MI->getOperand(3).setIsDead();
+    }
   }
 }
 
-void MapipFrameLowering::emitEpilogue(MachineFunction &MF,
-                                  MachineBasicBlock &MBB) const {
+void MAPIPFrameLowering::emitEpilogue(MachineFunction &MF,
+                                       MachineBasicBlock &MBB) const {
+  const MachineFrameInfo *MFI = MF.getFrameInfo();
+  MAPIPMachineFunctionInfo *MAPIPFI = MF.getInfo<MAPIPMachineFunctionInfo>();
+  const MAPIPInstrInfo &TII =
+    *static_cast<const MAPIPInstrInfo*>(MF.getTarget().getInstrInfo());
+
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
-  const MapipInstrInfo &TII =
-    *static_cast<const MapipInstrInfo*>(MF.getTarget().getInstrInfo());
-  DebugLoc dl = MBBI->getDebugLoc();
-  assert(MBBI->getOpcode() == MAPIP::RETL &&
-         "Can only put epilog before 'retl' instruction!");
-  BuildMI(MBB, MBBI, dl, TII.get(MAPIP::RESTORErr), MAPIP::G0).addReg(MAPIP::G0)
-    .addReg(MAPIP::G0);
+  unsigned RetOpcode = MBBI->getOpcode();
+  DebugLoc DL = MBBI->getDebugLoc();
+
+  switch (RetOpcode) {
+  case MAPIP::RET:
+  case MAPIP::RETI: break;  // These are ok
+  default:
+    llvm_unreachable("Can only insert epilog into returning blocks");
+  }
+
+  // Get the number of bytes to allocate from the FrameInfo.
+  uint64_t StackSize = MFI->getStackSize();
+  unsigned CSSize = MAPIPFI->getCalleeSavedFrameSize();
+  uint64_t NumBytes = StackSize - CSSize;
+
+  if (hasFP(MF)) {
+    // pop J.
+    BuildMI(MBB, MBBI, DL, TII.get(MAPIP::POP16r), MAPIP::J);
+  }
+
+  // Skip the callee-saved pop instructions.
+  while (MBBI != MBB.begin()) {
+    MachineBasicBlock::iterator PI = prior(MBBI);
+    unsigned Opc = PI->getOpcode();
+    if (Opc != MAPIP::POP16r && !PI->isTerminator())
+      break;
+    --MBBI;
+  }
+
+  DL = MBBI->getDebugLoc();
+
+  // If there is an ADD16ri or SUB16ri of SP immediately before this
+  // instruction, merge the two instructions.
+  //if (NumBytes || MFI->hasVarSizedObjects())
+  //  mergeSPUpdatesUp(MBB, MBBI, StackPtr, &NumBytes);
+
+  if (MFI->hasVarSizedObjects()) {
+    BuildMI(MBB, MBBI, DL,
+            TII.get(MAPIP::MOV16rr), MAPIP::SP).addReg(MAPIP::J);
+    if (CSSize) {
+      MachineInstr *MI =
+        BuildMI(MBB, MBBI, DL,
+                TII.get(MAPIP::SUB16ri), MAPIP::SP)
+        .addReg(MAPIP::SP).addImm(CSSize);
+      // The SRW implicit def is dead.
+      MI->getOperand(3).setIsDead();
+    }
+  } else {
+    // adjust stack pointer back: SP += numbytes
+    if (NumBytes) {
+      MachineInstr *MI =
+        BuildMI(MBB, MBBI, DL, TII.get(MAPIP::ADD16ri), MAPIP::SP)
+        .addReg(MAPIP::SP).addImm(NumBytes);
+      // The SRW implicit def is dead.
+      MI->getOperand(3).setIsDead();
+    }
+  }
+}
+
+// FIXME: Can we eleminate these in favour of generic code?
+bool
+MAPIPFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
+                                           MachineBasicBlock::iterator MI,
+                                        const std::vector<CalleeSavedInfo> &CSI,
+                                        const TargetRegisterInfo *TRI) const {
+  if (CSI.empty())
+    return false;
+
+  DebugLoc DL;
+  if (MI != MBB.end()) DL = MI->getDebugLoc();
+
+  MachineFunction &MF = *MBB.getParent();
+  const TargetInstrInfo &TII = *MF.getTarget().getInstrInfo();
+  MAPIPMachineFunctionInfo *MFI = MF.getInfo<MAPIPMachineFunctionInfo>();
+  MFI->setCalleeSavedFrameSize(CSI.size());
+
+  for (unsigned i = CSI.size(); i != 0; --i) {
+    unsigned Reg = CSI[i-1].getReg();
+    // Add the callee-saved register as live-in. It's killed at the spill.
+    MBB.addLiveIn(Reg);
+    BuildMI(MBB, MI, DL, TII.get(MAPIP::PUSH16r))
+      .addReg(Reg, RegState::Kill);
+  }
+  return true;
+}
+
+bool
+MAPIPFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
+                                                 MachineBasicBlock::iterator MI,
+                                        const std::vector<CalleeSavedInfo> &CSI,
+                                        const TargetRegisterInfo *TRI) const {
+  if (CSI.empty())
+    return false;
+
+  DebugLoc DL;
+  if (MI != MBB.end()) DL = MI->getDebugLoc();
+
+  MachineFunction &MF = *MBB.getParent();
+  const TargetInstrInfo &TII = *MF.getTarget().getInstrInfo();
+
+  for (unsigned i = 0, e = CSI.size(); i != e; ++i)
+    BuildMI(MBB, MI, DL, TII.get(MAPIP::POP16r), CSI[i].getReg());
+
+  return true;
+}
+
+void
+MAPIPFrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF)
+                                                                         const {
+  // Create a frame entry for the J register that must be saved.
+  if (hasFP(MF)) {
+    int FrameIdx = MF.getFrameInfo()->CreateFixedObject(1, -1, true);
+    (void)FrameIdx;
+    assert(FrameIdx == MF.getFrameInfo()->getObjectIndexBegin() &&
+           "Slot for J register must be last in order to be found!");
+  }
 }

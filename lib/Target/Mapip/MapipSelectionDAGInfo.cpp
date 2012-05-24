@@ -1,4 +1,4 @@
-//===-- MapipSelectionDAGInfo.cpp - Mapip SelectionDAG Info ---------------===//
+//===-- MAPIPSelectionDAGInfo.cpp - MAPIP SelectionDAG Info -------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the MapipSelectionDAGInfo class.
+// This file implements the MAPIPSelectionDAGInfo class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,9 +15,9 @@
 #include "MapipTargetMachine.h"
 using namespace llvm;
 
-MapipSelectionDAGInfo::MapipSelectionDAGInfo(const MapipTargetMachine &TM)
+MAPIPSelectionDAGInfo::MAPIPSelectionDAGInfo(const MAPIPTargetMachine &TM)
   : TargetSelectionDAGInfo(TM) {
 }
 
-MapipSelectionDAGInfo::~MapipSelectionDAGInfo() {
+MAPIPSelectionDAGInfo::~MAPIPSelectionDAGInfo() {
 }

@@ -1,4 +1,4 @@
-//===-- MapipSubtarget.cpp - MAPIP Subtarget Information ------------------===//
+//===-- MAPIPSubtarget.cpp - MAPIP Subtarget Information ----------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -21,25 +21,13 @@
 
 using namespace llvm;
 
-void MapipSubtarget::anchor() { }
+void MAPIPSubtarget::anchor() { }
 
-MapipSubtarget::MapipSubtarget(const std::string &TT, const std::string &CPU,
-                               const std::string &FS,  bool is64Bit) :
-  MapipGenSubtargetInfo(TT, CPU, FS),
-  IsV9(false),
-  V8DeprecatedInsts(false),
-  IsVIS(false),
-  Is64Bit(is64Bit) {
-  
-  // Determine default and user specified characteristics
-  std::string CPUName = CPU;
-  if (CPUName.empty()) {
-    if (is64Bit)
-      CPUName = "v9";
-    else
-      CPUName = "v8";
-  }
-  IsV9 = CPUName == "v9";
+MAPIPSubtarget::MAPIPSubtarget(const std::string &TT,
+                                 const std::string &CPU,
+                                 const std::string &FS) :
+  MAPIPGenSubtargetInfo(TT, CPU, FS) {
+  std::string CPUName = "generic";
 
   // Parse features string.
   ParseSubtargetFeatures(CPUName, FS);

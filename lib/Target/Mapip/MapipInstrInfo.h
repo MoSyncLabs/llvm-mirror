@@ -1,4 +1,4 @@
-//===-- MapipInstrInfo.h - Mapip Instruction Information --------*- C++ -*-===//
+//===-- MAPIPInstrInfo.h - MAPIP Instruction Information ------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,12 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the Mapip implementation of the TargetInstrInfo class.
+// This file contains the MAPIP implementation of the TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MAPIPINSTRUCTIONINFO_H
-#define MAPIPINSTRUCTIONINFO_H
+#ifndef LLVM_TARGET_MAPIPINSTRINFO_H
+#define LLVM_TARGET_MAPIPINSTRINFO_H
 
 #include "MapipRegisterInfo.h"
 #include "llvm/Target/TargetInstrInfo.h"
@@ -22,84 +22,73 @@
 
 namespace llvm {
 
-/// SPII - This namespace holds all of the target specific flags that
+class MAPIPTargetMachine;
+
+/// MAPIPII - This namespace holds all of the target specific flags that
 /// instruction info tracks.
 ///
-namespace SPII {
+namespace MAPIPII {
   enum {
-    Pseudo = (1<<0),
-    Load = (1<<1),
-    Store = (1<<2),
-    DelaySlot = (1<<3)
+    SizeShift   = 2,
+    SizeMask    = 7 << SizeShift,
+
+    SizeUnknown = 0 << SizeShift,
+    SizeSpecial = 1 << SizeShift,
+    Size2Bytes  = 2 << SizeShift,
+    Size4Bytes  = 3 << SizeShift,
+    Size6Bytes  = 4 << SizeShift
   };
 }
 
-class MapipInstrInfo : public MapipGenInstrInfo {
-  const MapipRegisterInfo RI;
-  const MapipSubtarget& Subtarget;
+class MAPIPInstrInfo : public MAPIPGenInstrInfo {
+  const MAPIPRegisterInfo RI;
+  MAPIPTargetMachine &TM;
 public:
-  explicit MapipInstrInfo(MapipSubtarget &ST);
+  explicit MAPIPInstrInfo(MAPIPTargetMachine &TM);
 
   /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
   /// such, whenever a client has an instance of instruction info, it should
   /// always be able to get register info as well (through this method).
   ///
-  virtual const MapipRegisterInfo &getRegisterInfo() const { return RI; }
+  virtual const TargetRegisterInfo &getRegisterInfo() const { return RI; }
 
-  /// isLoadFromStackSlot - If the specified machine instruction is a direct
-  /// load from a stack slot, return the virtual or physical register number of
-  /// the destination along with the FrameIndex of the loaded stack slot.  If
-  /// not, return 0.  This predicate must return 0 if the instruction has
-  /// any side effects other than loading from the stack slot.
+  void copyPhysReg(MachineBasicBlock &MBB,
+                   MachineBasicBlock::iterator I, DebugLoc DL,
+                   unsigned DestReg, unsigned SrcReg,
+                   bool KillSrc) const;
+
+  virtual void storeRegToStackSlot(MachineBasicBlock &MBB,
+                                   MachineBasicBlock::iterator MI,
+                                   unsigned SrcReg, bool isKill,
+                                   int FrameIndex,
+                                   const TargetRegisterClass *RC,
+                                   const TargetRegisterInfo *TRI) const;
+  virtual void loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                    MachineBasicBlock::iterator MI,
+                                    unsigned DestReg, int FrameIdx,
+                                    const TargetRegisterClass *RC,
+                                    const TargetRegisterInfo *TRI) const;
   virtual unsigned isLoadFromStackSlot(const MachineInstr *MI,
                                        int &FrameIndex) const;
-  
-  /// isStoreToStackSlot - If the specified machine instruction is a direct
-  /// store to a stack slot, return the virtual or physical register number of
-  /// the source reg along with the FrameIndex of the loaded stack slot.  If
-  /// not, return 0.  This predicate must return 0 if the instruction has
-  /// any side effects other than storing to the stack slot.
   virtual unsigned isStoreToStackSlot(const MachineInstr *MI,
                                       int &FrameIndex) const;
 
-  /// emitFrameIndexDebugValue - Emit a target-dependent form of
-  /// DBG_VALUE encoding the address of a frame index.
-  virtual MachineInstr *emitFrameIndexDebugValue(MachineFunction &MF,
-                                                 int FrameIx,
-                                                 uint64_t Offset,
-                                                 const MDNode *MDPtr,
-                                                 DebugLoc dl) const;
+  unsigned GetInstSizeInBytes(const MachineInstr *MI) const;
 
-  virtual bool AnalyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
-                             MachineBasicBlock *&FBB,
-                             SmallVectorImpl<MachineOperand> &Cond,
-                             bool AllowModify = false) const ;
+  // Branch folding goodness
+  bool ReverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const;
+  bool isUnpredicatedTerminator(const MachineInstr *MI) const;
+  bool AnalyzeBranch(MachineBasicBlock &MBB,
+                     MachineBasicBlock *&TBB, MachineBasicBlock *&FBB,
+                     SmallVectorImpl<MachineOperand> &Cond,
+                     bool AllowModify) const;
 
-  virtual unsigned RemoveBranch(MachineBasicBlock &MBB) const;
+  unsigned RemoveBranch(MachineBasicBlock &MBB) const;
+  unsigned InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
+                        MachineBasicBlock *FBB,
+                        const SmallVectorImpl<MachineOperand> &Cond,
+                        DebugLoc DL) const;
 
-  virtual unsigned InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
-                                MachineBasicBlock *FBB,
-                                const SmallVectorImpl<MachineOperand> &Cond,
-                                DebugLoc DL) const;
-
-  virtual void copyPhysReg(MachineBasicBlock &MBB,
-                           MachineBasicBlock::iterator I, DebugLoc DL,
-                           unsigned DestReg, unsigned SrcReg,
-                           bool KillSrc) const;
-  
-  virtual void storeRegToStackSlot(MachineBasicBlock &MBB,
-                                   MachineBasicBlock::iterator MBBI,
-                                   unsigned SrcReg, bool isKill, int FrameIndex,
-                                   const TargetRegisterClass *RC,
-                                   const TargetRegisterInfo *TRI) const;
-
-  virtual void loadRegFromStackSlot(MachineBasicBlock &MBB,
-                                    MachineBasicBlock::iterator MBBI,
-                                    unsigned DestReg, int FrameIndex,
-                                    const TargetRegisterClass *RC,
-                                    const TargetRegisterInfo *TRI) const;
-  
-  unsigned getGlobalBaseReg(MachineFunction *MF) const;
 };
 
 }
