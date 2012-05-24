@@ -93,6 +93,14 @@ MAPIPTargetLowering::MAPIPTargetLowering(MAPIPTargetMachine &tm) :
   setOperationAction(ISD::SRA_PARTS,        MVT::i32,   Expand);
 
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1,   Expand);
+ 
+  // FIXME: add support for these mosync insrtuctions..
+  setLoadExtAction(ISD::SEXTLOAD, MVT::i8, Expand);
+  setLoadExtAction(ISD::SEXTLOAD, MVT::i16, Expand);
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i8,   Expand);
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i16,   Expand);
+  setOperationAction(ISD::SIGN_EXTEND, MVT::i8,   Custom);
+  setOperationAction(ISD::SIGN_EXTEND, MVT::i16,   Custom);
 
   // FIXME: Implement efficiently multiplication by a constant
   setOperationAction(ISD::MULHS,            MVT::i32,   Expand);
@@ -294,7 +302,7 @@ MAPIPTargetLowering::LowerCCCArguments(SDValue Chain,
       // Sanity check
       assert(VA.isMemLoc());
       // Load the argument to a virtual register
-      unsigned ObjSize = VA.getLocVT().getSizeInBits()/16;
+      unsigned ObjSize = VA.getLocVT().getSizeInBits()/32;
       if (ObjSize != 1) {
         errs() << "LowerFormalArguments Unhandled argument type: "
              << EVT(VA.getLocVT()).getEVTString()

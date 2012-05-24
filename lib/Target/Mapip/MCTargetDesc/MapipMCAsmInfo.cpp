@@ -21,7 +21,7 @@ MAPIPMCAsmInfo::MAPIPMCAsmInfo(const Target &T, StringRef TT) {
   LabelSuffix = ":";
   PointerSize = 4;
 
-  PrivateGlobalPrefix = ".L";
+  PrivateGlobalPrefix = "L";
   GlobalDirective = "\t.global\t";
   WeakRefDirective ="\t.weak\t";
   PCSymbol=".";

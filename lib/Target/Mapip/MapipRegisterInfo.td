@@ -20,16 +20,16 @@ class MAPIPReg<bits<5> num, string n> : Register<n> {
 //  Registers
 //===----------------------------------------------------------------------===//
 
-def A  : MAPIPReg<0x0,  "A">;
-def B  : MAPIPReg<0x1,  "B">;
-def C  : MAPIPReg<0x2,  "C">;
-def X  : MAPIPReg<0x3,  "X">;
-def Y  : MAPIPReg<0x4,  "Y">;
-def Z  : MAPIPReg<0x5,  "Z">;
-def I  : MAPIPReg<0x6,  "I">;
-def J  : MAPIPReg<0x7,  "J">; // FP if needed
+def A  : MAPIPReg<0x0,  "i0">;
+def B  : MAPIPReg<0x1,  "i1">;
+def C  : MAPIPReg<0x2,  "i2">;
+def X  : MAPIPReg<0x3,  "r0">;
+def Y  : MAPIPReg<0x4,  "r1">;
+def Z  : MAPIPReg<0x5,  "r2">;
+def I  : MAPIPReg<0x6,  "r3">;
+def J  : MAPIPReg<0x7,  "fr">; // FP if needed
 
-def SP  : MAPIPReg<0x1b,  "SP">;
+def SP  : MAPIPReg<0x1b,  "sp">;
 def EX  : MAPIPReg<0x1d,  "EX">;
 
 // Volatile registers

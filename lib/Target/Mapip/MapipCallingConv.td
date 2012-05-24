@@ -13,9 +13,8 @@
 // MAPIP Return Value Calling Convention
 //===----------------------------------------------------------------------===//
 def RetCC_MAPIP : CallingConv<[
-  // Promote i8 return values to i16.
-  CCIfType<[i8], CCPromoteToType<i32>>,
-  CCIfType<[i16], CCPromoteToType<i32>>,
+  // Promote i8, i16 return values to i32.
+  CCIfType<[i8, i16], CCPromoteToType<i32>>,
 
   // i16 are returned in registers A, B, C
   CCIfType<[i32], CCAssignToReg<[A, B, C]>>
@@ -25,9 +24,8 @@ def RetCC_MAPIP : CallingConv<[
 // MAPIP Argument Calling Conventions
 //===----------------------------------------------------------------------===//
 def CC_MAPIP : CallingConv<[
-  // Promote i8 arguments to i16.
-  CCIfType<[i8], CCPromoteToType<i32>>,
-  CCIfType<[i16], CCPromoteToType<i32>>,
+  // Promote i8, i16 return values to i32.
+  CCIfType<[i8, i16], CCPromoteToType<i32>>,
 
   // The first 3 integer arguments of non-varargs functions are passed in
   // integer registers.
@@ -35,7 +33,7 @@ def CC_MAPIP : CallingConv<[
 
   // Integer values get stored in stack slots that are 1 (16 bit) byte in
   // size and 1-byte aligned.
-  CCIfType<[i32], CCAssignToStack<1, 1>>
+  CCIfType<[i32], CCAssignToStack<4, 4>>
 ]>;
 
 def CSR_MAPIP : CalleeSavedRegs<(add X, Y, Z, I, J)>;

@@ -176,7 +176,7 @@ def NOP : Pseudo<(outs), (ins), "nop", []>;
 // FIXME: Provide proper encoding!
 let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
   def RET  : IForm16<0x0, DstReg, SrcPostInc, Size2Bytes,
-                     (outs), (ins), "SET\t{PC, POP}",  [(MAPIPretflag)]>;
+                     (outs), (ins), "ret",  [(MAPIPretflag)]>;
   def RETI : II16r<0x0, (outs), (ins), "RFI", [(MAPIPretiflag)]>;
 }
 
@@ -188,7 +188,7 @@ let isBranch = 1, isTerminator = 1 in {
 let isBarrier = 1 in {
   // Short branch
   def JMP : CJForm<0, 0, (outs), (ins jmptarget:$dst),
-                   "SET\t{PC, $dst}",
+                   "jp\t#$dst",
                    [(br bb:$dst)]>;
   let isIndirectBranch = 1 in {
     // Long branches
@@ -240,13 +240,13 @@ let isCall = 1 in
       Uses = [SP] in {
     def CALLi     : II16i<0x0,
                           (outs), (ins i32imm:$dst, variable_ops),
-                          "JSR\t$dst", [(MAPIPcall imm:$dst)]>;
+                          "call\t&$dst", [(MAPIPcall imm:$dst)]>;
     def CALLr     : II16r<0x0,
                           (outs), (ins GEXR16:$dst, variable_ops),
-                          "JSR\t$dst", [(MAPIPcall GEXR16:$dst)]>;
+                          "call\t$dst", [(MAPIPcall GEXR16:$dst)]>;
     def CALLm     : II16m<0x0,
                           (outs), (ins memsrc:$dst, variable_ops),
-                          "JSR\t${dst:mem}", [(MAPIPcall (load addr:$dst))]>;
+                          "call\t${dst:mem}", [(MAPIPcall (load addr:$dst))]>;
   }
 
 
@@ -270,7 +270,7 @@ def PUSH16r  : II16r<0x0,
 let neverHasSideEffects = 1 in {
 def MOV16rr : I16rr<0x0,
                     (outs GEXR16:$dst), (ins GEXR16:$src),
-                    "SET\t{$dst, $src}",
+                    "ld\t{$dst, $src}",
                     []>;
 }
 
@@ -278,37 +278,37 @@ def MOV16rr : I16rr<0x0,
 let isReMaterializable = 1, isAsCheapAsAMove = 1 in {
 def MOV16ri : I16ri<0x0,
                     (outs GEXR16:$dst), (ins i32imm:$src),
-                    "SET\t{$dst, $src}",
+                    "ld\t{$dst, $src}",
                     [(set GEXR16:$dst, imm:$src)]>;
 }
 
 let canFoldAsLoad = 1, isReMaterializable = 1 in {
 def MOV16rm : I16rm<0x0,
                     (outs GEXR16:$dst), (ins memsrc:$src),
-                    "SET\t{$dst, $src}",
+                    "ld\t{$dst, $src}",
                     [(set GEXR16:$dst, (load addr:$src))]>;
 }
 
 let canFoldAsLoad = 1, isReMaterializable = 1 in {
 def MOV16rmi8 : I16rm<0x0,
                     (outs GEXR16:$dst), (ins memsrc:$src),
-                    "SET\t{$dst, $src}",
+                    "ld\t{$dst, $src}",
                     [(set GEXR16:$dst, (zextloadi8 addr:$src))]>;
 }
 
 def MOV16mi : I16mi<0x0,
                     (outs), (ins memdst:$dst, i32imm:$src),
-                    "SET\t{$dst, $src}",
+                    "ld\t{$dst, $src}",
                     [(store (i32 imm:$src), addr:$dst)]>;
 
 def MOV16mr : I16mr<0x0,
                     (outs), (ins memdst:$dst, GEXR16:$src),
-                    "SET\t{$dst, $src}",
+                    "ld\t{$dst, $src}",
                     [(store GEXR16:$src, addr:$dst)]>;
 
 def MOV16mm : I16mm<0x0,
                     (outs), (ins memdst:$dst, memsrc:$src),
-                    "SET\t{$dst, $src}",
+                    "ld\t{$dst, $src}",
                     [(store (i32 (load addr:$src)), addr:$dst)]>;
 
 //===----------------------------------------------------------------------===//
@@ -380,21 +380,21 @@ multiclass BASIC_NORMAL<bits<4> OpVal, string OpcStr, SDNode OpNode> {
 // Arithmetic Instructions
 
 let Defs = [EX] in {
-  defm ADD16   : BASIC_RR_IS_COM <0x0, "ADD", add>,  BASIC_NORMAL<0x0, "ADD", add>;
-  defm AND16   : BASIC_RR_IS_COM <0x0, "AND", and>,  BASIC_NORMAL<0x0, "AND", and>;
-  defm OR16    : BASIC_RR_IS_COM <0x0, "BOR", or>,   BASIC_NORMAL<0x0, "BOR", or>;
-  defm XOR16   : BASIC_RR_IS_COM <0x0, "XOR", xor>,  BASIC_NORMAL<0x0, "XOR", xor>;
-  defm SUB16   : BASIC_RR_NON_COM<0x0, "SUB", sub>,  BASIC_NORMAL<0x0, "SUB", sub>;
-  defm MUL16   : BASIC_RR_IS_COM <0x0, "MUL", mul>,  BASIC_NORMAL<0x0, "MUL", mul>;
+  defm ADD16   : BASIC_RR_IS_COM <0x0, "add", add>,  BASIC_NORMAL<0x0, "add", add>;
+  defm AND16   : BASIC_RR_IS_COM <0x0, "and", and>,  BASIC_NORMAL<0x0, "and", and>;
+  defm OR16    : BASIC_RR_IS_COM <0x0, "or", or>,   BASIC_NORMAL<0x0, "or", or>;
+  defm XOR16   : BASIC_RR_IS_COM <0x0, "xor", xor>,  BASIC_NORMAL<0x0, "xor", xor>;
+  defm SUB16   : BASIC_RR_NON_COM<0x0, "sub", sub>,  BASIC_NORMAL<0x0, "sub", sub>;
+  defm MUL16   : BASIC_RR_IS_COM <0x0, "mul", mul>,  BASIC_NORMAL<0x0, "mul", mul>;
   defm SMUL16  : BASIC_RR_IS_COM <0x0, "MLI", MAPIPsmul>,
                    BASIC_NORMAL<0x0, "MLI", MAPIPsmul>;
   defm UMUL16  : BASIC_RR_IS_COM <0x0, "MUL", MAPIPumul>,
                    BASIC_NORMAL<0x0, "MUL", MAPIPumul>;
-  defm DIV16   : BASIC_RR_NON_COM<0x0, "DIV", udiv>, BASIC_NORMAL<0x0, "DIV", udiv>;
-  defm DVI16   : BASIC_RR_NON_COM<0x0, "DVI", sdiv>, BASIC_NORMAL<0x0, "DVI", sdiv>;
-  defm SRL16   : BASIC_RR_NON_COM<0x0, "SHR", srl>,  BASIC_NORMAL<0x0, "SHR", srl>;
-  defm SRA16   : BASIC_RR_NON_COM<0x0, "ASR", sra>,  BASIC_NORMAL<0x0, "ASR", sra>;
-  defm SHL16   : BASIC_RR_NON_COM<0x0, "SHL", shl>,  BASIC_NORMAL<0x0, "SHL", shl>;
+  defm DIV16   : BASIC_RR_NON_COM<0x0, "div", udiv>, BASIC_NORMAL<0x0, "div", udiv>;
+  defm DVI16   : BASIC_RR_NON_COM<0x0, "divu", sdiv>, BASIC_NORMAL<0x0, "divu", sdiv>;
+  defm SRL16   : BASIC_RR_NON_COM<0x0, "srl", srl>,  BASIC_NORMAL<0x0, "srl", srl>;
+  defm SRA16   : BASIC_RR_NON_COM<0x0, "sra", sra>,  BASIC_NORMAL<0x0, "sra", sra>;
+  defm SHL16   : BASIC_RR_NON_COM<0x0, "shl", shl>,  BASIC_NORMAL<0x0, "shl", shl>;
   defm UREM16  : BASIC_RR_NON_COM<0x0, "MOD", urem>, BASIC_NORMAL<0x0, "MOD", urem>;
   defm SREM16  : BASIC_RR_NON_COM<0x0, "MDI", srem>, BASIC_NORMAL<0x0, "MDI", srem>;
 
