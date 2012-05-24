@@ -158,11 +158,13 @@ void MAPIPPeephole::runOptBrcc(MachineBasicBlock *mbb) {
 		// Doesn't work if the variable is used after jumping
         if(!activeOperand.isKill() && !activeOperand.isDead()) break;
         
+/*
         if(MachineInstr *peepholeSource = peepholeMap.lookup(activeReg)) {              
           // Change the branch instruction
-          if(instruction->getOperand(0).getImm() == MAPIPCC::COND_NE) {
+
+          if(instruction->getOperand(0).getImm() == MAPIPCC::MCOND_NE) {
             instruction->getOperand(0).setImm(MAPIPCC::COND_B);
-          } else if(instruction->getOperand(0).getImm() == MAPIPCC::COND_E) {
+          } else if(instruction->getOperand(0).getImm() == MAPIPCC::MCOND_EQ) {
             instruction->getOperand(0).setImm(MAPIPCC::COND_C);
           } else { peepholeMap.erase(activeReg); break; }
           
@@ -171,6 +173,7 @@ void MAPIPPeephole::runOptBrcc(MachineBasicBlock *mbb) {
           // Remove the AND from the block
           peepholeSource->eraseFromParent();
         }
+*/
       }
     }
   }

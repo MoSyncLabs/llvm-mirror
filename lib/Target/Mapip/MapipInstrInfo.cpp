@@ -159,41 +159,36 @@ ReverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
 
   switch (CC) {
   default: llvm_unreachable("Invalid branch condition!");
-  case MAPIPCC::COND_B:
-    CC = MAPIPCC::COND_C;
+
+  case MAPIPCC::MCOND_GE:
+	CC = MAPIPCC::MCOND_LE;
+	break;
+  case MAPIPCC::MCOND_LE:
+	CC = MAPIPCC::MCOND_GE;
+	break;
+  case MAPIPCC::MCOND_GEU:
+	CC = MAPIPCC::MCOND_LEU;
+	break;
+  case MAPIPCC::MCOND_LEU:
+	CC = MAPIPCC::MCOND_GEU;
+	break;
+  case MAPIPCC::MCOND_EQ:
+    CC = MAPIPCC::MCOND_NE;
     break;
-  case MAPIPCC::COND_C:
-    CC = MAPIPCC::COND_B;
+  case MAPIPCC::MCOND_NE:
+    CC = MAPIPCC::MCOND_EQ;
     break;
-  case MAPIPCC::COND_E:
-    CC = MAPIPCC::COND_NE;
+  case MAPIPCC::MCOND_LTU:
+    CC = MAPIPCC::MCOND_GTU;
     break;
-  case MAPIPCC::COND_NE:
-    CC = MAPIPCC::COND_E;
+  case MAPIPCC::MCOND_GTU:
+    CC = MAPIPCC::MCOND_LTU;
     break;
-  case MAPIPCC::COND_G:
-    CC = MAPIPCC::COND_LE;
+  case MAPIPCC::MCOND_LT:
+    CC = MAPIPCC::MCOND_GT;
     break;
-  case MAPIPCC::COND_A:
-    CC = MAPIPCC::COND_UE;
-    break;
-  case MAPIPCC::COND_L:
-    CC = MAPIPCC::COND_GE;
-    break;
-  case MAPIPCC::COND_U:
-    CC = MAPIPCC::COND_AE;
-    break;
-  case MAPIPCC::COND_GE:
-    CC = MAPIPCC::COND_L;
-    break;
-  case MAPIPCC::COND_AE:
-    CC = MAPIPCC::COND_U;
-    break;
-  case MAPIPCC::COND_LE:
-    CC = MAPIPCC::COND_G;
-    break;
-  case MAPIPCC::COND_UE:
-    CC = MAPIPCC::COND_A;
+  case MAPIPCC::MCOND_GT:
+    CC = MAPIPCC::MCOND_LT;
     break;
   }
 
@@ -217,27 +212,25 @@ static bool AcceptsAdditionalEqualityCheck(MAPIPCC::CondCodes simpleCC,
   *complexCC = simpleCC;
   switch (simpleCC) {
   default: llvm_unreachable("Invalid comparison code!");
-  case MAPIPCC::COND_GE:
-  case MAPIPCC::COND_LE:
-  case MAPIPCC::COND_AE:
-  case MAPIPCC::COND_UE:
+  case MAPIPCC::MCOND_GE:
+  case MAPIPCC::MCOND_LE:
+  case MAPIPCC::MCOND_EQ:
+  case MAPIPCC::MCOND_NE:
+  case MAPIPCC::MCOND_LEU:
+  case MAPIPCC::MCOND_GEU:
     llvm_unreachable("Not a simple CC, already contains an equality!");
-  case MAPIPCC::COND_B:
-  case MAPIPCC::COND_C:
-  case MAPIPCC::COND_E:
-  case MAPIPCC::COND_NE:
     return false;
-  case MAPIPCC::COND_G:
-    *complexCC = MAPIPCC::COND_GE;
+  case MAPIPCC::MCOND_GT:
+    *complexCC = MAPIPCC::MCOND_GE;
     return true;
-  case MAPIPCC::COND_A:
-    *complexCC = MAPIPCC::COND_AE;
+  case MAPIPCC::MCOND_LT:
+    *complexCC = MAPIPCC::MCOND_LE;
     return true;
-  case MAPIPCC::COND_L:
-    *complexCC = MAPIPCC::COND_LE;
+  case MAPIPCC::MCOND_LTU:
+    *complexCC = MAPIPCC::MCOND_LEU;
     return true;
-  case MAPIPCC::COND_U:
-    *complexCC = MAPIPCC::COND_UE;
+  case MAPIPCC::MCOND_GTU:
+    *complexCC = MAPIPCC::MCOND_GEU;
     return true;
   }
 }
@@ -322,7 +315,7 @@ bool MAPIPInstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,
 
     // Is it a complex CC?
     MAPIPCC::CondCodes complexCC;
-    if ((BranchCode == MAPIPCC::COND_E)
+    if ((BranchCode == MAPIPCC::MCOND_EQ)
         && AcceptsAdditionalEqualityCheck((MAPIPCC::CondCodes) Cond[1].getImm(), &complexCC)
         && (TBB == I->getOperand(3).getMBB())
         // This should actually check for equality but that's just too much code...
@@ -341,6 +334,7 @@ static bool IsComplexCC(MAPIPCC::CondCodes cc,
   *simpleCC = cc;
   switch (cc) {
   default: llvm_unreachable("Invalid condition code!");
+/*
   case MAPIPCC::COND_B:
   case MAPIPCC::COND_C:
   case MAPIPCC::COND_E:
@@ -362,6 +356,18 @@ static bool IsComplexCC(MAPIPCC::CondCodes cc,
   case MAPIPCC::COND_UE:
     *simpleCC = MAPIPCC::COND_U;
     return true;
+*/
+  case MAPIPCC::MCOND_GE:
+  case MAPIPCC::MCOND_LE:
+  case MAPIPCC::MCOND_GEU:
+  case MAPIPCC::MCOND_LEU:
+  case MAPIPCC::MCOND_EQ:
+  case MAPIPCC::MCOND_NE:
+  case MAPIPCC::MCOND_LTU:
+  case MAPIPCC::MCOND_GTU:
+  case MAPIPCC::MCOND_LT:
+  case MAPIPCC::MCOND_GT:
+	return false;
   }
 }
 
@@ -393,7 +399,7 @@ MAPIPInstrInfo::InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
   MAPIPCC::CondCodes simpleCC;
   if (IsComplexCC(CC, &simpleCC)) {
     BuildMI(&MBB, DL, get(Opcode))
-      .addImm(MAPIPCC::COND_E)
+      .addImm(MAPIPCC::MCOND_EQ)
       .addOperand(LHS).addOperand(RHS)
       .addMBB(TBB);
     CC = simpleCC;

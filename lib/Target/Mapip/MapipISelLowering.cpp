@@ -567,6 +567,7 @@ SDValue MAPIPTargetLowering::LowerBlockAddress(SDValue Op,
   return DAG.getNode(MAPIPISD::Wrapper, dl, getPointerTy(), Result);
 }
 
+
 static bool NeedsAdditionalEqualityCC(ISD::CondCode CC,
                                       ISD::CondCode *simpleCC,
                                       ISD::CondCode *reverseCC) {
@@ -576,37 +577,17 @@ static bool NeedsAdditionalEqualityCC(ISD::CondCode CC,
     *reverseCC = CC;
   switch (CC) {
   default: break;
+  case ISD::SETGE:
+  case ISD::SETLE:
+  case ISD::SETUGE:
+  case ISD::SETULE:
   case ISD::SETEQ:
   case ISD::SETNE:
-  case ISD::SETLT:
   case ISD::SETULT:
   case ISD::SETUGT:
+  case ISD::SETLT:
   case ISD::SETGT:
     return false;
-  case ISD::SETUGE:
-    if (simpleCC)
-      *simpleCC = ISD::SETUGT;
-    if (reverseCC)
-      *reverseCC = ISD::SETULT;
-    return true;
-  case ISD::SETULE:
-    if (simpleCC)
-      *simpleCC = ISD::SETULT;
-    if (reverseCC)
-      *reverseCC = ISD::SETUGT;
-    return true;
-  case ISD::SETGE:
-    if (simpleCC)
-      *simpleCC = ISD::SETGT;
-    if (reverseCC)
-      *reverseCC = ISD::SETLT;
-    return true;
-  case ISD::SETLE:
-    if (simpleCC)
-      *simpleCC = ISD::SETLT;
-    if (reverseCC)
-      *reverseCC = ISD::SETGT;
-    return true;
   }
   llvm_unreachable("Unsupported or invalid integer condition!");
   return false;
@@ -616,22 +597,25 @@ static MAPIPCC::CondCodes GetSimpleCC(ISD::CondCode CC) {
   switch (CC) {
   default: llvm_unreachable("Invalid integer condition!");
   case ISD::SETGE:
+    return MAPIPCC::MCOND_GE;
   case ISD::SETLE:
+    return MAPIPCC::MCOND_LE;
   case ISD::SETUGE:
+    return MAPIPCC::MCOND_GEU;
   case ISD::SETULE:
-    llvm_unreachable("CC requires additional equality test - not simple!");
+    return MAPIPCC::MCOND_LEU;
   case ISD::SETEQ:
-    return MAPIPCC::COND_E;
+    return MAPIPCC::MCOND_EQ;
   case ISD::SETNE:
-    return MAPIPCC::COND_NE;
+    return MAPIPCC::MCOND_NE;
   case ISD::SETULT:
-    return MAPIPCC::COND_L;
+    return MAPIPCC::MCOND_LTU;
   case ISD::SETUGT:
-    return MAPIPCC::COND_G;
+    return MAPIPCC::MCOND_GTU;
   case ISD::SETLT:
-    return MAPIPCC::COND_U;
+    return MAPIPCC::MCOND_LT;
   case ISD::SETGT:
-    return MAPIPCC::COND_A;
+    return MAPIPCC::MCOND_GT;
   }
 }
 
@@ -643,14 +627,17 @@ SDValue MAPIPTargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
   SDValue Dest  = Op.getOperand(4);
   DebugLoc dl   = Op.getDebugLoc();
 
-  ISD::CondCode nonEqualCC;
+ // ISD::CondCode nonEqualCC;
+/*
   if (NeedsAdditionalEqualityCC(CC, &nonEqualCC, NULL)) {
     SDValue eqCC = DAG.getConstant(MAPIPCC::COND_E, MVT::i32);
     Chain = DAG.getNode(MAPIPISD::BR_CC, dl, Op.getValueType(),
                         Chain, eqCC, LHS, RHS, Dest);
   }
+*/
 
-  MAPIPCC::CondCodes simpleCC = GetSimpleCC(nonEqualCC);
+//  MAPIPCC::CondCodes simpleCC = GetSimpleCC(nonEqualCC);
+  MAPIPCC::CondCodes simpleCC = GetSimpleCC(CC);
   return DAG.getNode(MAPIPISD::BR_CC, dl, Op.getValueType(),
                      Chain, DAG.getConstant(simpleCC, MVT::i32), LHS, RHS, Dest);
 }

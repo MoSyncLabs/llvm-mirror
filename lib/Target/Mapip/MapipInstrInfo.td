@@ -208,8 +208,7 @@ let isBarrier = 1 in {
 // TODO: add memory versions
 def BR_CCrr : CJForm<0, 0,
    (outs), (ins cc:$cc, GEXR16:$lhs, GEXR16:$rhs, jmptarget:$dst),
-   "$cc\t{$lhs, $rhs}\n"
-   "\tSET\t{PC, $dst}",
+   "jc\t{$cc, $lhs, $rhs, #$dst}",
    [(MAPIPbrcc imm:$cc, GEXR16:$lhs, GEXR16:$rhs, bb:$dst)]>;
 def BR_CCri : CJForm<0, 0,
    (outs), (ins cc:$cc, GEXR16:$lhs, i32imm:$rhs, jmptarget:$dst),
@@ -306,10 +305,12 @@ def MOV16mr : I16mr<0x0,
                     "ld\t{$dst, $src}",
                     [(store GEXR16:$src, addr:$dst)]>;
 
+/*
 def MOV16mm : I16mm<0x0,
                     (outs), (ins memdst:$dst, memsrc:$src),
                     "ld\t{$dst, $src}",
                     [(store (i32 (load addr:$src)), addr:$dst)]>;
+*/
 
 //===----------------------------------------------------------------------===//
 // Multiclasses for arithmetic instructions
@@ -336,17 +337,20 @@ multiclass BASIC_RR_NON_COM<bits<4> OpVal, string OpcStr, SDNode OpNode> {
 
 multiclass BASIC_NORMAL<bits<4> OpVal, string OpcStr, SDNode OpNode> {
   let Constraints = "$src = $dst" in {
+/*
   def rm: I16rm<OpVal,
                     (outs GR16:$dst), (ins GR16:$src, memsrc:$src2),
                     OpcStr#"\t{$dst, $src2}",
                     [(set GR16:$dst, (OpNode GR16:$src, (load addr:$src2))),
                      (implicit EX)]>;
+*/
   def ri: I16ri<OpVal,
                     (outs GR16:$dst), (ins GR16:$src, i32imm:$src2),
                     OpcStr#"\t{$dst, $src2}",
                     [(set GR16:$dst, (OpNode GR16:$src, imm:$src2)),
                      (implicit EX)]>;
   }
+/*
   let Constraints = "" in {
   def mr: I16mr<OpVal,
                     (outs), (ins memdst:$dst, GEXR16:$src),
@@ -364,8 +368,7 @@ multiclass BASIC_NORMAL<bits<4> OpVal, string OpcStr, SDNode OpNode> {
                     [(store (OpNode (load addr:$dst),
                                   (i32 (load addr:$src))), addr:$dst),
                      (implicit EX)]>;
-  }
-  
+  }  
   // FIXME! Wrong zero extend
   let Constraints = "$src = $dst", canFoldAsLoad = 1, isReMaterializable = 1 in {
   def rmi8 : I16rm<OpVal,
@@ -373,7 +376,8 @@ multiclass BASIC_NORMAL<bits<4> OpVal, string OpcStr, SDNode OpNode> {
 					OpcStr#"\t{$dst, $src}",
                     [(set GR16:$dst, (OpNode GR16:$src, (zextloadi8 addr:$src2))),
                      (implicit EX)]>;
-  }  
+  }
+*/  
 }
 
 //===----------------------------------------------------------------------===//
@@ -442,22 +446,30 @@ def : Pat<(MAPIPcall (i32 texternalsym:$dst)),
 // add and sub always produce carry
 def : Pat<(addc GR16:$src, GR16:$src2),
           (ADD16rr GR16:$src, GR16:$src2)>;
+/*
 def : Pat<(addc GR16:$src, (load addr:$src2)),
           (ADD16rm GR16:$src, addr:$src2)>;
+*/
 def : Pat<(addc GR16:$src, imm:$src2),
           (ADD16ri GR16:$src, imm:$src2)>;
+/*
 def : Pat<(store (addc (load addr:$dst), GR16:$src), addr:$dst),
           (ADD16mr addr:$dst, GR16:$src)>;
 def : Pat<(store (addc (load addr:$dst), (i32 (load addr:$src))), addr:$dst),
           (ADD16mm addr:$dst, addr:$src)>;
+*/
 
 def : Pat<(subc GR16:$src, GR16:$src2),
           (SUB16rr GR16:$src, GR16:$src2)>;
+/*
 def : Pat<(subc GR16:$src, (load addr:$src2)),
           (SUB16rm GR16:$src, addr:$src2)>;
+*/
 def : Pat<(subc GR16:$src, imm:$src2),
           (SUB16ri GR16:$src, imm:$src2)>;
+/*
 def : Pat<(store (subc (load addr:$dst), GR16:$src), addr:$dst),
           (SUB16mr addr:$dst, GR16:$src)>;
 def : Pat<(store (subc (load addr:$dst), (i32 (load addr:$src))), addr:$dst),
           (SUB16mm addr:$dst, addr:$src)>;
+*/

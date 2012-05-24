@@ -21,21 +21,16 @@
 namespace MAPIPCC {
   // MAPIP specific condition code.
   enum CondCodes {
-    COND_B,  // a&b != 0
-    COND_C,  // a&b == 0
-    COND_E,  // ==
-    COND_NE, // !=
-
-    COND_G,  // u>
-    COND_A,  // s>
-    COND_L,  // u<
-    COND_U,  // s<
-
-    // These are pseudo CCs, they get expanded to two IF_ instructions
-    COND_GE, // u>=
-    COND_AE, // s>=
-    COND_LE, // u<=
-    COND_UE, // s<=
+    MCOND_EQ,  // a==b
+    MCOND_NE,  // a!=b
+    MCOND_GE,  // a>=b
+    MCOND_GEU, // (unsigned)a>=(unsigned)b
+    MCOND_GT,  // a>b
+    MCOND_GTU,  // (unsigned)a>(unsigned)b
+    MCOND_LE,  // a<=b
+    MCOND_LEU,  // (unsigned)a<=(unsigned)b
+    MCOND_LT, // a<b
+    MCOND_LTU, // (unsigned)a<(unsigned)b
 
     COND_INVALID = -1
   };

@@ -132,29 +132,36 @@ void MAPIPInstPrinter::printCCOperand(const MCInst *MI, unsigned OpNo,
   switch (CC) {
   default:
     llvm_unreachable("Unsupported CC code");
-  case MAPIPCC::COND_B:
-    O << "IFB";
+  case MAPIPCC::MCOND_GE:
+    O << "ge";
     break;
-  case MAPIPCC::COND_C:
-    O << "IFC";
+  case MAPIPCC::MCOND_LE:
+    O << "le";
     break;
-  case MAPIPCC::COND_E:
-    O << "IFE";
+  case MAPIPCC::MCOND_GEU:
+    O << "geu";
     break;
-  case MAPIPCC::COND_NE:
-    O << "IFN";
+  case MAPIPCC::MCOND_LEU:
+    O << "leu";
     break;
-  case MAPIPCC::COND_G:
-    O << "IFG";
+  case MAPIPCC::MCOND_EQ:
+    O << "eq";
     break;
-  case MAPIPCC::COND_A:
-    O << "IFA";
+  case MAPIPCC::MCOND_NE:
+    O << "ne";
     break;
-  case MAPIPCC::COND_L:
-    O << "IFL";
+  case MAPIPCC::MCOND_LTU:
+    O << "ltu";
     break;
-  case MAPIPCC::COND_U:
-    O << "IFU";
+  case MAPIPCC::MCOND_GTU:
+    O << "gtu";
     break;
+  case MAPIPCC::MCOND_LT:
+    O << "lt";
+    break;
+  case MAPIPCC::MCOND_GT:
+    O << "gt";
+    break;
+
   }
 }
