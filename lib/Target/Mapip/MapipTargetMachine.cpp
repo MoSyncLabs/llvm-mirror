@@ -35,7 +35,7 @@ MAPIPTargetMachine::MAPIPTargetMachine(const Target &T,
   : LLVMTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL),
     Subtarget(TT, CPU, FS),
     // FIXME: Check TargetData string.
-    DataLayout("e-p:32:32:32-i8:32:32-i16:32:32-i32:32:32-s0:32:32-n32"/*, 16*/),
+    DataLayout("e-p:32:32:32-i8:32:32-i16:32:32-i32:32:32-s0:32:32-n32-S32-a0:0:32"/*, 16*/),
     InstrInfo(*this), TLInfo(*this), TSInfo(*this),
     FrameLowering(Subtarget) { }
 

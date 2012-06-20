@@ -147,6 +147,7 @@ void MAPIPPeephole::runOptBrcc(MachineBasicBlock *mbb) {
       }
       
       // Branch instructions
+/*
       case MAPIP::BR_CCri: {
         assert(instruction->getNumOperands() == 4);
         
@@ -158,7 +159,6 @@ void MAPIPPeephole::runOptBrcc(MachineBasicBlock *mbb) {
 		// Doesn't work if the variable is used after jumping
         if(!activeOperand.isKill() && !activeOperand.isDead()) break;
         
-/*
         if(MachineInstr *peepholeSource = peepholeMap.lookup(activeReg)) {              
           // Change the branch instruction
 
@@ -173,8 +173,8 @@ void MAPIPPeephole::runOptBrcc(MachineBasicBlock *mbb) {
           // Remove the AND from the block
           peepholeSource->eraseFromParent();
         }
-*/
       }
+*/
     }
   }
 }

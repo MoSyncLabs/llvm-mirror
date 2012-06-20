@@ -22,10 +22,12 @@ MAPIPMCAsmInfo::MAPIPMCAsmInfo(const Target &T, StringRef TT) {
   PointerSize = 4;
 
   PrivateGlobalPrefix = "L";
+  GlobalPrefix = "_";
   GlobalDirective = "\t.global\t";
   WeakRefDirective ="\t.weak\t";
   PCSymbol=".";
   CommentString = ";";
+  AscizDirective = NULL;
   IsLittleEndian = true;
 
   AlignmentIsInBytes = true;
@@ -33,4 +35,5 @@ MAPIPMCAsmInfo::MAPIPMCAsmInfo(const Target &T, StringRef TT) {
   AllowNameToStartWithDigit = true;
   UsesELFSectionDirectiveForBSS = false;
   HasDotTypeDotSizeDirective = false;
+  HasSingleParameterDotFile = false;
 }

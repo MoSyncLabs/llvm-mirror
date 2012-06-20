@@ -109,7 +109,7 @@ def and_su : PatFrag<(ops node:$lhs, node:$rhs), (and node:$lhs, node:$rhs), [{
 // pointer before prolog-epilog rewriting occurs.
 // Pessimistically assume ADJCALLSTACKDOWN / ADJCALLSTACKUP will become
 // sub / add which can clobber EX.
-let Defs = [SP, EX], Uses = [SP] in {
+let Defs = [SP/*, EX*/], Uses = [SP] in {
 def ADJCALLSTACKDOWN : Pseudo<(outs), (ins i32imm:$amt),
                               "#ADJCALLSTACKDOWN",
                               [(MAPIPcallseq_start timm:$amt)]>;
@@ -208,23 +208,24 @@ let isBarrier = 1 in {
 // TODO: add memory versions
 def BR_CCrr : CJForm<0, 0,
    (outs), (ins cc:$cc, GEXR16:$lhs, GEXR16:$rhs, jmptarget:$dst),
-   "jc\t{$cc, $lhs, $rhs, #$dst}",
+   "jc\t{$cc,$lhs,$rhs,#$dst}",
    [(MAPIPbrcc imm:$cc, GEXR16:$lhs, GEXR16:$rhs, bb:$dst)]>;
+/*
 def BR_CCri : CJForm<0, 0,
    (outs), (ins cc:$cc, GEXR16:$lhs, i32imm:$rhs, jmptarget:$dst),
-   "$cc\t{$lhs, $rhs}\n"
-   "\tSET\t{PC, $dst}",
+   "jc\t{$cc,$lhs,$rhs,#$dst}",
    [(MAPIPbrcc imm:$cc, GEXR16:$lhs, imm:$rhs, bb:$dst)]>;
 def BR_CCir : CJForm<0, 0,
    (outs), (ins cc:$cc, i32imm:$lhs, GEXR16:$rhs, jmptarget:$dst),
-   "$cc\t{$lhs, $rhs}\n"
-   "\tSET\t{PC, $dst}",
+   "jc\t{$cc,$lhs,$rhs,#$dst}",
    [(MAPIPbrcc imm:$cc, imm:$lhs, GEXR16:$rhs, bb:$dst)]>;
+*/
+/*
 def BR_CCii : CJForm<0, 0,
    (outs), (ins cc:$cc, i32imm:$lhs, i32imm:$rhs, jmptarget:$dst),
-   "$cc\t{$lhs, $rhs}\n"
-   "\tSET\t{PC, $dst}",
+   "jc\t{$cc,$lhs,$rhs,#$dst}",
    [(MAPIPbrcc imm:$cc, imm:$lhs, imm:$rhs, bb:$dst)]>;
+*/
 } // isBranch, isTerminator
 
 //===----------------------------------------------------------------------===//
@@ -235,7 +236,7 @@ let isCall = 1 in
   // a use to prevent stack-pointer assignments that appear immediately
   // before calls from potentially appearing dead. Uses for argument
   // registers are added manually.
-  let Defs = [EX],
+  let /*Defs = [EX],*/
       Uses = [SP] in {
     def CALLi     : II16i<0x0,
                           (outs), (ins i32imm:$dst, variable_ops),
@@ -255,11 +256,13 @@ let isCall = 1 in
 let Defs = [SP], Uses = [SP], neverHasSideEffects=1 in {
 let mayLoad = 1 in
 def POP16r   : IForm16<0x0, DstReg, SrcPostInc, Size2Bytes,
-                       (outs GEXR16:$reg), (ins), "SET\t{$reg, POP}", []>;
+                       (outs GEXR16:$reg), (ins), 
+						"pop\t{$reg,$reg}", []>;
 
 let mayStore = 1 in
 def PUSH16r  : II16r<0x0,
-                     (outs), (ins GEXR16:$reg), "SET\t{PUSH, $reg}",[]>;
+                     (outs), (ins GEXR16:$reg),
+					"push\t{$reg,$reg}",[]>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -269,7 +272,7 @@ def PUSH16r  : II16r<0x0,
 let neverHasSideEffects = 1 in {
 def MOV16rr : I16rr<0x0,
                     (outs GEXR16:$dst), (ins GEXR16:$src),
-                    "ld\t{$dst, $src}",
+                    "ld\t{$dst,$src}",
                     []>;
 }
 
@@ -277,38 +280,40 @@ def MOV16rr : I16rr<0x0,
 let isReMaterializable = 1, isAsCheapAsAMove = 1 in {
 def MOV16ri : I16ri<0x0,
                     (outs GEXR16:$dst), (ins i32imm:$src),
-                    "ld\t{$dst, $src}",
+                    "ld\t{$dst,$src}",
                     [(set GEXR16:$dst, imm:$src)]>;
 }
 
 let canFoldAsLoad = 1, isReMaterializable = 1 in {
 def MOV16rm : I16rm<0x0,
                     (outs GEXR16:$dst), (ins memsrc:$src),
-                    "ld\t{$dst, $src}",
+                    "ld\t{$dst,$src}",
                     [(set GEXR16:$dst, (load addr:$src))]>;
 }
 
 let canFoldAsLoad = 1, isReMaterializable = 1 in {
 def MOV16rmi8 : I16rm<0x0,
                     (outs GEXR16:$dst), (ins memsrc:$src),
-                    "ld\t{$dst, $src}",
+                    "ld\t{$dst,$src}",
                     [(set GEXR16:$dst, (zextloadi8 addr:$src))]>;
 }
 
+/*
 def MOV16mi : I16mi<0x0,
                     (outs), (ins memdst:$dst, i32imm:$src),
-                    "ld\t{$dst, $src}",
+                    "ld\t{$dst,$src}",
                     [(store (i32 imm:$src), addr:$dst)]>;
+*/
 
 def MOV16mr : I16mr<0x0,
                     (outs), (ins memdst:$dst, GEXR16:$src),
-                    "ld\t{$dst, $src}",
+                    "ld\t{$dst,$src}",
                     [(store GEXR16:$src, addr:$dst)]>;
 
 /*
 def MOV16mm : I16mm<0x0,
                     (outs), (ins memdst:$dst, memsrc:$src),
-                    "ld\t{$dst, $src}",
+                    "ld\t{$dst,$src}",
                     [(store (i32 (load addr:$src)), addr:$dst)]>;
 */
 
@@ -319,9 +324,9 @@ multiclass BASIC_RR_IS_COM<bits<4> OpVal, string OpcStr, SDNode OpNode> {
   let Constraints = "$src = $dst", isCommutable = 1 in {
   def rr: I16rr<OpVal,
                     (outs GR16:$dst), (ins GR16:$src, GEXR16:$src2),
-                    OpcStr#"\t{$dst, $src2}",
-                    [(set GR16:$dst, (OpNode GR16:$src, GEXR16:$src2)),
-                     (implicit EX)]>;
+                    OpcStr#"\t{$dst,$src2}",
+                    [(set GR16:$dst, (OpNode GR16:$src, GEXR16:$src2))/*,
+                     (implicit EX)*/]>;
   }
 }
 
@@ -329,9 +334,9 @@ multiclass BASIC_RR_NON_COM<bits<4> OpVal, string OpcStr, SDNode OpNode> {
   let Constraints = "$src = $dst" in {
   def rr: I16rr<OpVal,
                     (outs GR16:$dst), (ins GR16:$src, GEXR16:$src2),
-                    OpcStr#"\t{$dst, $src2}",
-                    [(set GR16:$dst, (OpNode GR16:$src, GEXR16:$src2)),
-                     (implicit EX)]>;
+                    OpcStr#"\t{$dst,$src2}",
+                    [(set GR16:$dst, (OpNode GR16:$src, GEXR16:$src2))/*,
+                     (implicit EX)*/]>;
   }
 }
 
@@ -340,42 +345,42 @@ multiclass BASIC_NORMAL<bits<4> OpVal, string OpcStr, SDNode OpNode> {
 /*
   def rm: I16rm<OpVal,
                     (outs GR16:$dst), (ins GR16:$src, memsrc:$src2),
-                    OpcStr#"\t{$dst, $src2}",
-                    [(set GR16:$dst, (OpNode GR16:$src, (load addr:$src2))),
-                     (implicit EX)]>;
+                    OpcStr#"\t{$dst,$src2}",
+                    [(set GR16:$dst, (OpNode GR16:$src, (load addr:$src2)))/*,
+                     (implicit EX)*/]>;
 */
   def ri: I16ri<OpVal,
                     (outs GR16:$dst), (ins GR16:$src, i32imm:$src2),
-                    OpcStr#"\t{$dst, $src2}",
-                    [(set GR16:$dst, (OpNode GR16:$src, imm:$src2)),
-                     (implicit EX)]>;
+                    OpcStr#"\t{$dst,$src2}",
+                    [(set GR16:$dst, (OpNode GR16:$src, imm:$src2))/*,
+                     (implicit EX)*/]>;
   }
 /*
   let Constraints = "" in {
   def mr: I16mr<OpVal,
                     (outs), (ins memdst:$dst, GEXR16:$src),
-                    OpcStr#"\t{$dst, $src}",
-                    [(store (OpNode (load addr:$dst), GEXR16:$src), addr:$dst),
-                     (implicit EX)]>;
+                    OpcStr#"\t{$dst,$src}",
+                    [(store (OpNode (load addr:$dst), GEXR16:$src), addr:$dst)/*,
+                     (implicit EX)*/]>;
   def mi: I16mi<OpVal,
                     (outs), (ins memdst:$dst, i32imm:$src),
-                    OpcStr#"\t{$dst, $src}",
-                    [(store (OpNode (load addr:$dst), (i32 imm:$src)), addr:$dst),
-                     (implicit EX)]>;
+                    OpcStr#"\t{$dst,$src}",
+                    [(store (OpNode (load addr:$dst), (i32 imm:$src)), addr:$dst)/*,
+                     (implicit EX)*/]>;
   def mm: I16mm<OpVal,
                     (outs), (ins memdst:$dst, memsrc:$src),
-                    OpcStr#"\t{$dst, $src}",
+                    OpcStr#"\t{$dst,$src}",
                     [(store (OpNode (load addr:$dst),
-                                  (i32 (load addr:$src))), addr:$dst),
-                     (implicit EX)]>;
+                                  (i32 (load addr:$src))), addr:$dst)/*,
+                     (implicit EX)*/]>;
   }  
   // FIXME! Wrong zero extend
   let Constraints = "$src = $dst", canFoldAsLoad = 1, isReMaterializable = 1 in {
   def rmi8 : I16rm<OpVal,
                     (outs GR16:$dst), (ins GR16:$src, memsrc:$src2),
-					OpcStr#"\t{$dst, $src}",
-                    [(set GR16:$dst, (OpNode GR16:$src, (zextloadi8 addr:$src2))),
-                     (implicit EX)]>;
+					OpcStr#"\t{$dst,$src}",
+                    [(set GR16:$dst, (OpNode GR16:$src, (zextloadi8 addr:$src2)))/*,
+                     (implicit EX)*/]>;
   }
 */  
 }
@@ -383,7 +388,7 @@ multiclass BASIC_NORMAL<bits<4> OpVal, string OpcStr, SDNode OpNode> {
 //===----------------------------------------------------------------------===//
 // Arithmetic Instructions
 
-let Defs = [EX] in {
+//let Defs = [EX] in {
   defm ADD16   : BASIC_RR_IS_COM <0x0, "add", add>,  BASIC_NORMAL<0x0, "add", add>;
   defm AND16   : BASIC_RR_IS_COM <0x0, "and", and>,  BASIC_NORMAL<0x0, "and", and>;
   defm OR16    : BASIC_RR_IS_COM <0x0, "or", or>,   BASIC_NORMAL<0x0, "or", or>;
@@ -402,12 +407,14 @@ let Defs = [EX] in {
   defm UREM16  : BASIC_RR_NON_COM<0x0, "MOD", urem>, BASIC_NORMAL<0x0, "MOD", urem>;
   defm SREM16  : BASIC_RR_NON_COM<0x0, "MDI", srem>, BASIC_NORMAL<0x0, "MDI", srem>;
 
+/*
   let Uses = [EX] in {
     defm ADC16   : BASIC_RR_IS_COM <0x0, "ADX", adde>, BASIC_NORMAL<0x0, "ADX", adde>;
     defm SBC16   : BASIC_RR_NON_COM<0x0, "SBX", sube>, BASIC_NORMAL<0x0, "SBX", sube>;
   }
+*/
 
-} // Defs = [EX]
+//} // Defs = [EX]
 
 
 //===----------------------------------------------------------------------===//
@@ -428,6 +435,7 @@ def : Pat<(add GR16:$src, (MAPIPWrapper tblockaddress:$src2)),
 def : Pat<(add GR16:$src, (MAPIPWrapper tjumptable:$src2)),
           (ADD16ri GR16:$src, tjumptable:$src2)>;
 
+/*
 def : Pat<(store (i32 (MAPIPWrapper tglobaladdr:$src)), addr:$dst),
           (MOV16mi addr:$dst, tglobaladdr:$src)>;
 def : Pat<(store (i32 (MAPIPWrapper texternalsym:$src)), addr:$dst),
@@ -436,6 +444,7 @@ def : Pat<(store (i32 (MAPIPWrapper tblockaddress:$src)), addr:$dst),
           (MOV16mi addr:$dst, tblockaddress:$src)>;
 def : Pat<(store (i32 (MAPIPWrapper tjumptable:$src)), addr:$dst),
           (MOV16mi addr:$dst, tjumptable:$src)>;
+*/
 
 // calls
 def : Pat<(MAPIPcall (i32 tglobaladdr:$dst)),

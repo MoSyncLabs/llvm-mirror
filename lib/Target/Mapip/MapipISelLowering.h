@@ -79,8 +79,8 @@ namespace llvm {
     SDValue LowerSIGN_EXTEND(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerROT(SDValue Op, SelectionDAG &DAG, bool IsLeft) const;
-    SDValue LowerMUL_LOHI(SDValue Op, SelectionDAG &DAG, bool Signed) const;
+    //SDValue LowerROT(SDValue Op, SelectionDAG &DAG, bool IsLeft) const;
+    //SDValue LowerMUL_LOHI(SDValue Op, SelectionDAG &DAG, bool Signed) const;
     SDValue LowerJumpTable(SDValue Op, SelectionDAG &DAG) const;
     SDValue getReturnAddressFrameIndex(SelectionDAG &DAG) const;
 

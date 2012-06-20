@@ -27,7 +27,7 @@ protected:
 
 public:
   explicit MAPIPFrameLowering(const MAPIPSubtarget &sti)
-    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 1, -1), STI(sti) {
+    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 4, -1, 4), STI(sti) {
   }
 
   /// emitProlog/emitEpilog - These methods insert prolog and epilog code into

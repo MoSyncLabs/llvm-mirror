@@ -261,20 +261,20 @@ bool MAPIPDAGToDAGISel::SelectAddr(SDValue N,
 
   if (AM.GV)
     Disp = CurDAG->getTargetGlobalAddress(AM.GV, N->getDebugLoc(),
-                                          MVT::i16, AM.Disp,
+                                          MVT::i32, AM.Disp,
                                           0/*AM.SymbolFlags*/);
   else if (AM.CP)
-    Disp = CurDAG->getTargetConstantPool(AM.CP, MVT::i16,
+    Disp = CurDAG->getTargetConstantPool(AM.CP, MVT::i32,
                                          AM.Align, AM.Disp, 0/*AM.SymbolFlags*/);
   else if (AM.ES)
-    Disp = CurDAG->getTargetExternalSymbol(AM.ES, MVT::i16, 0/*AM.SymbolFlags*/);
+    Disp = CurDAG->getTargetExternalSymbol(AM.ES, MVT::i32, 0/*AM.SymbolFlags*/);
   else if (AM.JT != -1)
-    Disp = CurDAG->getTargetJumpTable(AM.JT, MVT::i16, 0/*AM.SymbolFlags*/);
+    Disp = CurDAG->getTargetJumpTable(AM.JT, MVT::i32, 0/*AM.SymbolFlags*/);
   else if (AM.BlockAddr)
     Disp = CurDAG->getBlockAddress(AM.BlockAddr, MVT::i32,
                                    true, 0/*AM.SymbolFlags*/);
   else
-    Disp = CurDAG->getTargetConstant(AM.Disp, MVT::i16);
+    Disp = CurDAG->getTargetConstant(AM.Disp, MVT::i32);
 
   return true;
 }

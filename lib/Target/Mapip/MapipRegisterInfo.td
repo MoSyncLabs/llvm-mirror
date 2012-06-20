@@ -27,10 +27,11 @@ def X  : MAPIPReg<0x3,  "r0">;
 def Y  : MAPIPReg<0x4,  "r1">;
 def Z  : MAPIPReg<0x5,  "r2">;
 def I  : MAPIPReg<0x6,  "r3">;
-def J  : MAPIPReg<0x7,  "fr">; // FP if needed
+def J  : MAPIPReg<0x7,  "r4">; // FP if needed
 
+def FR  : MAPIPReg<0x1c,  "fr">;
 def SP  : MAPIPReg<0x1b,  "sp">;
-def EX  : MAPIPReg<0x1d,  "EX">;
+//def EX  : MAPIPReg<0x1d,  "EX">;
 
 // Volatile registers
 def GR16 : RegisterClass<"MAPIP", [i32], 32,
@@ -40,10 +41,12 @@ def GR16 : RegisterClass<"MAPIP", [i32], 32,
 def SPR16 : RegisterClass<"MAPIP", [i32], 32,
   (add SP)>;
 
+/*
 // Overflow register
 def EXR16 : RegisterClass<"MAPIP", [i32], 32,
   (add EX)>;
+*/
 
 // Both volatile registers and EX
 def GEXR16 : RegisterClass<"MAPIP", [i32], 32,
-  (add GR16, EXR16)>;
+  (add GR16/*, EXR16*/)>;

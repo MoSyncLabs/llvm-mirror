@@ -50,8 +50,12 @@ void MAPIPFrameLowering::emitPrologue(MachineFunction &MF) const {
 
   // Get the number of bytes to allocate from the FrameInfo.
   uint64_t StackSize = MFI->getStackSize();
-
   uint64_t NumBytes = StackSize - MAPIPFI->getCalleeSavedFrameSize();
+
+  // Niklas: align to 32-bit here?
+  unsigned Align = this->getStackAlignment();
+  NumBytes = (NumBytes+Align-1)/Align*Align;
+
   if (hasFP(MF)) {
     // Get the offset of the stack slot for the EBP register... which is
     // guaranteed to be the last slot by processFunctionBeforeFrameFinalized.
@@ -59,17 +63,25 @@ void MAPIPFrameLowering::emitPrologue(MachineFunction &MF) const {
     MFI->setOffsetAdjustment(-NumBytes);
 
     // Save J into the appropriate stack slot...
+//    BuildMI(MBB, MBBI, DL, TII.get(MAPIP::PUSH16r))
+//      .addReg(MAPIP::J, RegState::Kill);
+    // Save FR into the appropriate stack slot...
     BuildMI(MBB, MBBI, DL, TII.get(MAPIP::PUSH16r))
-      .addReg(MAPIP::J, RegState::Kill);
+      .addReg(MAPIP::FR, RegState::Kill);
 
     // Update J with the new base value...
+/*
     BuildMI(MBB, MBBI, DL, TII.get(MAPIP::MOV16rr), MAPIP::J)
+      .addReg(MAPIP::SP);
+*/
+    BuildMI(MBB, MBBI, DL, TII.get(MAPIP::MOV16rr), MAPIP::FR)
       .addReg(MAPIP::SP);
 
     // Mark the FramePtr as live-in in every block except the entry.
     for (MachineFunction::iterator I = llvm::next(MF.begin()), E = MF.end();
          I != E; ++I)
-      I->addLiveIn(MAPIP::J);
+//      I->addLiveIn(MAPIP::J);
+      I->addLiveIn(MAPIP::FR);
   }
 
   // Skip the callee-saved push instructions.
@@ -91,8 +103,8 @@ void MAPIPFrameLowering::emitPrologue(MachineFunction &MF) const {
       MachineInstr *MI =
         BuildMI(MBB, MBBI, DL, TII.get(MAPIP::SUB16ri), MAPIP::SP)
         .addReg(MAPIP::SP).addImm(NumBytes);
-      // The SRW implicit def is dead.
-      MI->getOperand(3).setIsDead();
+      // The SRW implicit def is dead. Niklas: Que?
+      //MI->getOperand(3).setIsDead();
     }
   }
 }
@@ -120,9 +132,15 @@ void MAPIPFrameLowering::emitEpilogue(MachineFunction &MF,
   unsigned CSSize = MAPIPFI->getCalleeSavedFrameSize();
   uint64_t NumBytes = StackSize - CSSize;
 
+  // Niklas: align to 32-bit here?
+  //unsigned Align = this->getStackAlignment();
+  //NumBytes = (NumBytes+Align-1)/Align*Align;
+
   if (hasFP(MF)) {
     // pop J.
-    BuildMI(MBB, MBBI, DL, TII.get(MAPIP::POP16r), MAPIP::J);
+    // BuildMI(MBB, MBBI, DL, TII.get(MAPIP::POP16r), MAPIP::J);
+    // pop FR.
+    BuildMI(MBB, MBBI, DL, TII.get(MAPIP::POP16r), MAPIP::FR);
   }
 
   // Skip the callee-saved pop instructions.
@@ -138,12 +156,15 @@ void MAPIPFrameLowering::emitEpilogue(MachineFunction &MF,
 
   // If there is an ADD16ri or SUB16ri of SP immediately before this
   // instruction, merge the two instructions.
-  //if (NumBytes || MFI->hasVarSizedObjects())
-  //  mergeSPUpdatesUp(MBB, MBBI, StackPtr, &NumBytes);
+  // if (NumBytes || MFI->hasVarSizedObjects())
+  //   mergeSPUpdatesUp(MBB, MBBI, StackPtr, &NumBytes);
 
-  if (MFI->hasVarSizedObjects()) {
+    if (MFI->hasVarSizedObjects()) {
+//  BuildMI(MBB, MBBI, DL,
+//          TII.get(MAPIP::MOV16rr), MAPIP::SP).addReg(MAPIP::J);
     BuildMI(MBB, MBBI, DL,
-            TII.get(MAPIP::MOV16rr), MAPIP::SP).addReg(MAPIP::J);
+            TII.get(MAPIP::MOV16rr), MAPIP::SP).addReg(MAPIP::FR);
+
     if (CSSize) {
       MachineInstr *MI =
         BuildMI(MBB, MBBI, DL,
@@ -159,7 +180,7 @@ void MAPIPFrameLowering::emitEpilogue(MachineFunction &MF,
         BuildMI(MBB, MBBI, DL, TII.get(MAPIP::ADD16ri), MAPIP::SP)
         .addReg(MAPIP::SP).addImm(NumBytes);
       // The SRW implicit def is dead.
-      MI->getOperand(3).setIsDead();
+      //MI->getOperand(3).setIsDead();
     }
   }
 }

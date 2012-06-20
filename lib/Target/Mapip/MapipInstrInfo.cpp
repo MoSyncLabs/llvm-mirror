@@ -122,9 +122,11 @@ static bool isBR_CC(unsigned Opcode) {
   switch (Opcode) {
     default: return false;
     case MAPIP::BR_CCrr:
+/*
     case MAPIP::BR_CCri:
     case MAPIP::BR_CCir:
     case MAPIP::BR_CCii:
+*/
       return true;
   }
 }

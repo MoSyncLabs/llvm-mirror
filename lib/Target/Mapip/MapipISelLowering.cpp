@@ -66,8 +66,11 @@ MAPIPTargetLowering::MAPIPTargetLowering(MAPIPTargetMachine &tm) :
   setLoadExtAction(ISD::ZEXTLOAD, MVT::i1,  Promote);
   setLoadExtAction(ISD::SEXTLOAD, MVT::i32, Expand);
 
-  setOperationAction(ISD::ROTL,             MVT::i32,   Custom);
-  setOperationAction(ISD::ROTR,             MVT::i32,   Custom);
+//  setOperationAction(ISD::ROTL,             MVT::i32,   Custom);
+//  setOperationAction(ISD::ROTR,             MVT::i32,   Custom);
+  setOperationAction(ISD::ROTL,             MVT::i32,   Expand);
+  setOperationAction(ISD::ROTR,             MVT::i32,   Expand);
+
   setOperationAction(ISD::BSWAP,            MVT::i32,   Expand);
   setOperationAction(ISD::GlobalAddress,    MVT::i32,   Custom);
   setOperationAction(ISD::ExternalSymbol,   MVT::i32,   Custom);
@@ -105,14 +108,19 @@ MAPIPTargetLowering::MAPIPTargetLowering(MAPIPTargetMachine &tm) :
   // FIXME: Implement efficiently multiplication by a constant
   setOperationAction(ISD::MULHS,            MVT::i32,   Expand);
   setOperationAction(ISD::MULHU,            MVT::i32,   Expand);
-  setOperationAction(ISD::SMUL_LOHI,        MVT::i32,   Custom);
-  setOperationAction(ISD::UMUL_LOHI,        MVT::i32,   Custom);
+//  setOperationAction(ISD::SMUL_LOHI,        MVT::i32,   Custom);
+//  setOperationAction(ISD::UMUL_LOHI,        MVT::i32,   Custom);
+  setOperationAction(ISD::SMUL_LOHI,        MVT::i32,   Expand);
+  setOperationAction(ISD::UMUL_LOHI,        MVT::i32,   Expand);
 
   setOperationAction(ISD::UDIVREM,          MVT::i32,   Expand);
   setOperationAction(ISD::SDIVREM,          MVT::i32,   Expand);
 
   setMinFunctionAlignment(1);
   setPrefFunctionAlignment(1);
+
+  // this means 2^2 bytes right?
+  setMinStackArgumentAlignment(2);
 }
 
 SDValue MAPIPTargetLowering::LowerOperation(SDValue Op,
@@ -126,10 +134,10 @@ SDValue MAPIPTargetLowering::LowerOperation(SDValue Op,
   case ISD::SIGN_EXTEND:      return LowerSIGN_EXTEND(Op, DAG);
   case ISD::RETURNADDR:       return LowerRETURNADDR(Op, DAG);
   case ISD::FRAMEADDR:        return LowerFRAMEADDR(Op, DAG);
-  case ISD::ROTL:             return LowerROT(Op, DAG, true);
-  case ISD::ROTR:             return LowerROT(Op, DAG, false);
-  case ISD::SMUL_LOHI:        return LowerMUL_LOHI(Op, DAG, true);
-  case ISD::UMUL_LOHI:        return LowerMUL_LOHI(Op, DAG, false);
+//  case ISD::ROTL:             return LowerROT(Op, DAG, true);
+//  case ISD::ROTR:             return LowerROT(Op, DAG, false);
+//  case ISD::SMUL_LOHI:        return LowerMUL_LOHI(Op, DAG, true);
+//  case ISD::UMUL_LOHI:        return LowerMUL_LOHI(Op, DAG, false);
   case ISD::JumpTable:        return LowerJumpTable(Op, DAG);
   default:
     llvm_unreachable("unimplemented operand");
@@ -730,7 +738,9 @@ SDValue MAPIPTargetLowering::LowerFRAMEADDR(SDValue Op,
   DebugLoc dl = Op.getDebugLoc();  // FIXME probably not meaningful
   unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
   SDValue FrameAddr = DAG.getCopyFromReg(DAG.getEntryNode(), dl,
-                                         MAPIP::J, VT);
+//                                         MAPIP::J, VT);
+                                         MAPIP::FR, VT);
+
   while (Depth--)
     FrameAddr = DAG.getLoad(VT, dl, DAG.getEntryNode(), FrameAddr,
                             MachinePointerInfo(),
@@ -738,6 +748,7 @@ SDValue MAPIPTargetLowering::LowerFRAMEADDR(SDValue Op,
   return FrameAddr;
 }
 
+/*
 SDValue MAPIPTargetLowering::LowerROT(SDValue Op,
                                        SelectionDAG &DAG,
                                        bool IsLeft) const {
@@ -758,7 +769,9 @@ SDValue MAPIPTargetLowering::LowerROT(SDValue Op,
   SDValue Ops2[] = {ShiftNode, Ex};
   return DAG.getNode(ISD::OR, dl, VTs2, Ops2, array_lengthof(Ops2));
 }
+*/
 
+/*
 SDValue MAPIPTargetLowering::LowerMUL_LOHI(SDValue Op,
                                             SelectionDAG &DAG,
                                             bool Signed) const {
@@ -778,6 +791,7 @@ SDValue MAPIPTargetLowering::LowerMUL_LOHI(SDValue Op,
   SDValue Ops2[] = {Lo, Hi};
   return DAG.getMergeValues(Ops2, 2, dl);
 }
+*/
 
 SDValue MAPIPTargetLowering::LowerJumpTable(SDValue Op,
                                              SelectionDAG &DAG) const {

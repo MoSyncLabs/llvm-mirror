@@ -48,7 +48,7 @@ MAPIPRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   // In interrupt handlers, the caller has to save all registers except A.
   // This includes EX.
   static const uint16_t CalleeSavedRegsIntr[] = {
-    MAPIP::EX,
+ //   MAPIP::EX,
     MAPIP::B, MAPIP::C,
     MAPIP::X, MAPIP::Y, MAPIP::Z, MAPIP::I, MAPIP::J,
     0
@@ -74,12 +74,13 @@ BitVector MAPIPRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
 
   // Mark 2 special registers as reserved.
-  Reserved.set(MAPIP::EX);
+//  Reserved.set(MAPIP::EX);
   Reserved.set(MAPIP::SP);
 
   // Mark frame pointer as reserved if needed.
   if (TFI->hasFP(MF))
-    Reserved.set(MAPIP::J);
+//    Reserved.set(MAPIP::J);
+    Reserved.set(MAPIP::FR);
 
   return Reserved;
 }
@@ -125,7 +126,7 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
 
       if (New) {
         // The SRW implicit def is dead.
-        New->getOperand(3).setIsDead();
+        //New->getOperand(3).setIsDead();
 
         // Replace the pseudo instruction with a new instruction...
         MBB.insert(I, New);
@@ -140,7 +141,7 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
         BuildMI(MF, Old->getDebugLoc(), TII.get(MAPIP::SUB16ri),
                 MAPIP::SP).addReg(MAPIP::SP).addImm(CalleeAmt);
       // The SRW implicit def is dead.
-      New->getOperand(3).setIsDead();
+      //New->getOperand(3).setIsDead();
 
       MBB.insert(I, New);
     }
@@ -167,11 +168,11 @@ MAPIPRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   int FrameIndex = MI.getOperand(i).getIndex();
 
-  unsigned BasePtr = (TFI->hasFP(MF) ? MAPIP::J : MAPIP::SP);
+  unsigned BasePtr = (TFI->hasFP(MF) ? MAPIP::FR/*MAPIP::J*/ : MAPIP::SP);
   int Offset = MF.getFrameInfo()->getObjectOffset(FrameIndex);
 
   // Skip the saved PC
-  Offset += 1;
+  //Offset += 1;
 
   if (!TFI->hasFP(MF))
     Offset += MF.getFrameInfo()->getStackSize();
@@ -209,5 +210,5 @@ MAPIPRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 unsigned MAPIPRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
 
-  return TFI->hasFP(MF) ? MAPIP::J : MAPIP::SP;
+  return TFI->hasFP(MF) ? /*MAPIP::J*/MAPIP::FR : MAPIP::SP;
 }
