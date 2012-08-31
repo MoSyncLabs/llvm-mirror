@@ -45,17 +45,7 @@ MAPIPRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     MAPIP::X, MAPIP::Y, MAPIP::Z, MAPIP::I, MAPIP::J,
     0
   };
-  // In interrupt handlers, the caller has to save all registers except A.
-  // This includes EX.
-  static const uint16_t CalleeSavedRegsIntr[] = {
- //   MAPIP::EX,
-    MAPIP::B, MAPIP::C,
-    MAPIP::X, MAPIP::Y, MAPIP::Z, MAPIP::I, MAPIP::J,
-    0
-  };
-
-  return (/*F->getCallingConv() == CallingConv::MAPIP_INTR ?
-          CalleeSavedRegsIntr :*/ CalleeSavedRegs);
+  return CalleeSavedRegs;
 }
 
 const uint32_t*

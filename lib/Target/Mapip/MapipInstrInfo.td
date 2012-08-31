@@ -416,7 +416,6 @@ multiclass BASIC_NORMAL<bits<4> OpVal, string OpcStr, SDNode OpNode> {
 
 //} // Defs = [EX]
 
-
 //===----------------------------------------------------------------------===//
 // Non-Instruction Patterns
 

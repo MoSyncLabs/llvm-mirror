@@ -58,7 +58,7 @@ void MAPIPInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
 	  O.write_hex(Op.getImm());
   } else {
     assert(Op.isExpr() && "unknown operand kind in printOperand");
-    O << *Op.getExpr();
+    O << "#" << *Op.getExpr();
   }
 }
 
@@ -92,6 +92,8 @@ void MAPIPInstPrinter::printSrcMemOperand(const MCInst *MI, unsigned OpNo,
 
   if (Base.getReg()) {
     O << getRegisterName(Base.getReg());
+  } else {
+	O << '&';
   }
 
   if (Disp.isExpr()) {

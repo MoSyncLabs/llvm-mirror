@@ -38,8 +38,23 @@
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
+class MapipTargetLoweringObjectFileCOFF : public TargetLoweringObjectFileCOFF
+{
+	public:
+		MapipTargetLoweringObjectFileCOFF () : TargetLoweringObjectFileCOFF()
+		{
+			CommDirectiveSupportsAlignment = false;
+		}
+
+		virtual void 	Initialize (MCContext &ctx, const TargetMachine &TM)
+		{
+			TargetLoweringObjectFileCOFF::Initialize(ctx, TM);
+			CommDirectiveSupportsAlignment = false;
+		}
+};
+
 MAPIPTargetLowering::MAPIPTargetLowering(MAPIPTargetMachine &tm) :
-  TargetLowering(tm, new TargetLoweringObjectFileCOFF()),
+  TargetLowering(tm, new MapipTargetLoweringObjectFileCOFF()),
   Subtarget(*tm.getSubtargetImpl()), TM(tm) {
 
   TD = getTargetData();
@@ -64,7 +79,15 @@ MAPIPTargetLowering::MAPIPTargetLowering(MAPIPTargetMachine &tm) :
   setLoadExtAction(ISD::EXTLOAD,  MVT::i1,  Promote);
   setLoadExtAction(ISD::SEXTLOAD, MVT::i1,  Promote);
   setLoadExtAction(ISD::ZEXTLOAD, MVT::i1,  Promote);
+
+  setLoadExtAction(ISD::SEXTLOAD, MVT::i8,  Expand);
+  setLoadExtAction(ISD::SEXTLOAD, MVT::i16, Expand);
   setLoadExtAction(ISD::SEXTLOAD, MVT::i32, Expand);
+
+  // We don't have any truncstores (OR WE DO, BUT THEY AREN'T IMPLEMENTED YET)
+  setTruncStoreAction(MVT::i32, MVT::i16, Expand);
+  setTruncStoreAction(MVT::i32, MVT::i8 , Expand);
+  setTruncStoreAction(MVT::i16, MVT::i8,  Expand);
 
 //  setOperationAction(ISD::ROTL,             MVT::i32,   Custom);
 //  setOperationAction(ISD::ROTR,             MVT::i32,   Custom);
@@ -98,12 +121,10 @@ MAPIPTargetLowering::MAPIPTargetLowering(MAPIPTargetMachine &tm) :
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1,   Expand);
  
   // FIXME: add support for these mosync insrtuctions..
-  setLoadExtAction(ISD::SEXTLOAD, MVT::i8, Expand);
-  setLoadExtAction(ISD::SEXTLOAD, MVT::i16, Expand);
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i8,   Expand);
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i16,   Expand);
-  setOperationAction(ISD::SIGN_EXTEND, MVT::i8,   Custom);
-  setOperationAction(ISD::SIGN_EXTEND, MVT::i16,   Custom);
+//  setOperationAction(ISD::SIGN_EXTEND, MVT::i8,   Custom);
+//  setOperationAction(ISD::SIGN_EXTEND, MVT::i16,   Custom);
 
   // FIXME: Implement efficiently multiplication by a constant
   setOperationAction(ISD::MULHS,            MVT::i32,   Expand);

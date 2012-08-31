@@ -30,6 +30,8 @@ MAPIPMCAsmInfo::MAPIPMCAsmInfo(const Target &T, StringRef TT) {
   AscizDirective = NULL;
   IsLittleEndian = true;
 
+  //LCOMMDirectiveType = LCOMM::None;
+
   AlignmentIsInBytes = true;
   AlignDirective = "\t.align\t";
   AllowNameToStartWithDigit = true;

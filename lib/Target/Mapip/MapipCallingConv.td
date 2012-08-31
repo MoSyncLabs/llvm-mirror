@@ -17,7 +17,7 @@ def RetCC_MAPIP : CallingConv<[
   CCIfType<[i8, i16], CCPromoteToType<i32>>,
 
   // i16 are returned in registers A, B, C
-  CCIfType<[i32], CCAssignToReg<[A, B, C]>>
+  CCIfType<[i32], CCAssignToReg<[A]>>
 ]>;
 
 //===----------------------------------------------------------------------===//

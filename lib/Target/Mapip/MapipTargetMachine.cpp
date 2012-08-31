@@ -37,7 +37,8 @@ MAPIPTargetMachine::MAPIPTargetMachine(const Target &T,
     // FIXME: Check TargetData string.
     DataLayout("e-p:32:32:32-i8:32:32-i16:32:32-i32:32:32-s0:32:32-n32-S32-a0:0:32"/*, 16*/),
     InstrInfo(*this), TLInfo(*this), TSInfo(*this),
-    FrameLowering(Subtarget) { }
+    FrameLowering(Subtarget) {
+}
 
 namespace {
 /// MAPIP Code Generator Pass Configuration Options.

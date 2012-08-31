@@ -53,8 +53,10 @@ void MAPIPFrameLowering::emitPrologue(MachineFunction &MF) const {
   uint64_t NumBytes = StackSize - MAPIPFI->getCalleeSavedFrameSize();
 
   // Niklas: align to 32-bit here?
-  unsigned Align = this->getStackAlignment();
-  NumBytes = (NumBytes+Align-1)/Align*Align;
+//  unsigned Align = this->getStackAlignment();
+//  NumBytes = (NumBytes+Align-1)/Align*Align;
+ 	NumBytes = (NumBytes + 3) & ~3;
+  	MFI->setStackSize(NumBytes);
 
   if (hasFP(MF)) {
     // Get the offset of the stack slot for the EBP register... which is
@@ -133,8 +135,8 @@ void MAPIPFrameLowering::emitEpilogue(MachineFunction &MF,
   uint64_t NumBytes = StackSize - CSSize;
 
   // Niklas: align to 32-bit here?
-  //unsigned Align = this->getStackAlignment();
-  //NumBytes = (NumBytes+Align-1)/Align*Align;
+ // unsigned Align = this->getStackAlignment();
+ // NumBytes = (NumBytes+Align-1)/Align*Align;
 
   if (hasFP(MF)) {
     // pop J.

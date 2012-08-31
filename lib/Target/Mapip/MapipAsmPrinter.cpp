@@ -60,7 +60,6 @@ namespace {
                                const char *ExtraCode, raw_ostream &O);
     void EmitInstruction(const MachineInstr *MI);
     void EmitFunctionEntryLabel();
-
   };
 } // end of anonymous namespace
 
